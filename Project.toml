@@ -1,0 +1,30 @@
+name = "Africa"
+uuid = "6119f539-958e-4989-9c66-2e1931f65b8f"
+authors = ["Claire Harris <claire.harris@bioss.ac.uk>"]
+version = "0.1.0"
+
+[deps]
+AxisArrays = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Diversity = "d3d5718d-52de-57ab-b67a-eca7fd6175a4"
+EcoSISTEM = "ed2dc23b-ada4-5fdb-a26f-56368a14ad8f"
+IndexedTables = "6deec6e2-d858-57c5-ab9b-e6ca5bd20e43"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+JuliaDB = "a93385a2-3734-596a-9a66-3cfbb77141e6"
+JuliaDBMeta = "2c06ca41-a429-545c-b8f0-5ca7dd64ba19"
+Phylo = "aea672f4-3940-5932-aa44-993d1c3ff149"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[compat]
+AxisArrays = "0.4.3"
+DataFrames = "0.21.8, 0.22, 1.0"
+Distributions = "0.24.15, 0.25"
+Diversity = "0.5.4"
+EcoSISTEM = "0.1.2"
+IndexedTables = "0.12.6, 1"
+JuliaDB = "0.13"
+Phylo = "0.4.18"
+Unitful = "1.7"
+julia = "1.6"

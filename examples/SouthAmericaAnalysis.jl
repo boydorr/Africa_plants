@@ -1,0 +1,330 @@
+using JLD
+using Diversity
+using Plots
+using Unitful
+using Unitful.DefaultSymbols
+using EcoSISTEM.Units
+using AxisArrays
+using EcoSISTEM.ClimatePref
+using Statistics
+using EcoSISTEM
+using Random
+plotlyjs()
+
+output = EcoSISTEM.GridLandscape(JLD.load("data/SA_diversity_1.jld", "diver"), (58633, 73, 107))
+sa_abun = norm_sub_alpha(Metacommunity(output.matrix), 0.0)[:diversity]
+sa_abun = transpose(reshape(sa_abun, 73, 107))
+sa = readfile("data/SouthAmerica.tif", -85°, -30.25°, -60.25°, 20°)[:, end:-1:1]
+active =  Array{Bool, 2}(.!isnan.(sa))
+sa_abun[isnan.(sa_abun)] .= 0
+sa_abun[.!(transpose(active))] .= NaN
+
+heatmap(sa_abun, background_color = :lightblue, background_color_outside=:white, grid = false, color = :algae_r, aspect_ratio = 1)
+Plots.pdf("1901_SA.pdf")
+
+output = EcoSISTEM.GridLandscape(JLD.load("SA_rand_1.jld", "diver"), (58633, 73, 107))
+sa_abun = norm_sub_alpha(Metacommunity(output.matrix), 0.0)[:diversity]
+sa_abun = transpose(reshape(sa_abun, 73, 107))
+sa = readfile("data/SouthAmerica.tif", -85°, -30.25°, -60.25°, 20°)[:, end:-1:1]
+active =  Array{Bool, 2}(.!isnan.(sa))
+sa_abun[isnan.(sa_abun)] .= 0
+sa_abun[.!(transpose(active))] .= NaN
+
+heatmap(sa_abun, background_color = :lightblue, background_color_outside=:white, grid = false, color = cgrad(:algae, scale = :exp), aspect_ratio = 1)
+Plots.pdf("RandSA1901.pdf")
+
+
+##
+divfuns = [norm_sub_alpha, raw_sub_alpha, norm_sub_beta, raw_sub_beta, norm_sub_rho, raw_sub_rho, sub_gamma]
+q = [0.0, 1.0, 2.0, Inf]
+sa = readfile("data/SouthAmerica.tif", -85°, -30.25°, -60.25°, 20°)[:, end:-1:1]
+active =  Array{Bool, 2}(.!isnan.(sa))
+function plotProg(div, active, qind, divind; logit=true, kwargs...)
+    years = [1, 25, 50, 118]
+    div1 = JLD.load("data/SA_full_1.jld", "diver")
+    div1 = reshape(div1, 7, 73, 107, 118, 4)
+    inds = div1[divind, :, :, years, qind]
+    inds[isnan.(inds)] .= 0
+    for i in 1:size(inds, 3)
+        ind = @view inds[:,:, i]
+        ind[.!(active)] .= NaN
+    end
+    maxs = ifelse(logit, maximum(log.(1 .+ inds[.!isnan.(inds)])), maximum(inds[.!isnan.(inds)]))
+    mins = ifelse(logit, minimum(log.(1 .+ inds[.!isnan.(inds)])), minimum(inds[.!isnan.(inds)]))
+    h = heatmap(background_color = :lightblue, background_color_outside=:white, grid = false, color = :algae_r, layout = (@layout [a b; c d]), size = (1000, 750), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 5.0*Plots.mm, clim = (mins, maxs))
+    for i in eachindex(years)
+        year = div[divind, :, :, years[i], qind]
+        year[isnan.(year)] .= 0
+        year[.!(active)] .= NaN
+        logyear = ifelse(logit, transpose(log.(1 .+ year)), transpose(year))
+        h = heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, logyear, background_color = :lightblue, background_color_outside=:white, grid = false, color = :algae_r, subplot = i, aspect_ratio =1; kwargs...)
+    end
+    display(h)
+end
+plotlyjs()
+
+function catmean(filename::String, num::Int64)
+    diver = JLD.load(filename*"1.jld", "diver")
+    diver = reshape(diver, 7, 73, 107, 118, 4)
+    for i in 2:num
+        diveri = JLD.load(filename*"$i.jld", "diver")
+        diveri = reshape(diveri, 7, 73, 107, 118, 4)
+        diver = cat(diver, diveri, dims = 6)
+    end
+    return mapslices(mean, diver, dims = 6)[:, :, :, :, :, 1]
+end
+diverF = catmean("data/SA_full_", 10)
+
+#diver = JLD.load("data/SA_full_1.jld", "diver")
+#diver = reshape(diver, 7, 73, 107, 118, 4)
+plotProg(diverF, active, 2, 1, colorbar_title = "ᾱ")
+Plots.pdf("plots/NormAlphas_SA.pdf")
+
+plotProg(diverF, active, 1, 1, colorbar_title = "SR", logit = false)
+Plots.pdf("plots/SpeciesRichness_SA.pdf")
+
+plotProg(diverF, active, 2, 3, colorbar_title = "β̄", logit = false)
+Plots.pdf("plots/NormBetas_SA.pdf")
+
+plotProg(diverF, active, 2, 5, colorbar_title = "ρ̄")
+Plots.pdf("plots/NormRhos_SA.pdf")
+
+plotProg(diverF, active, 2, 4, colorbar_title = "β")
+Plots.pdf("plots/Betas_SA.pdf")
+
+plotProg(diverF, active, 2, 5, colorbar_title = "ρ")
+Plots.pdf("plots/Rhos_SA.pdf")
+
+plotProg(diverF, active, 2, 7, colorbar_title = "γ")
+Plots.pdf("plots/Gammas_SA.pdf")
+
+pyplot()
+plotProg(diverF, active, 2, 1, colorbar_title = "ᾱ")
+Plots.pdf("plots/CB_alphas_SA.pdf")
+
+plotProg(diverF, active, 2, 3, colorbar_title = "β̄")
+Plots.pdf("plots/CB_betas_SA.pdf")
+
+plotProg(diverF, active, 2, 5, colorbar_title = "ρ̄", logit = false)
+Plots.pdf("plots/CB_rhos_SA.pdf")
+
+plotProg(diverF, active, 2, 7, colorbar_title = "γ")
+Plots.pdf("plots/CB_gammas_SA.pdf")
+
+plotlyjs()
+#div = JLD.load("SA_neutral_1.jld", "diver")
+#div = reshape(div, 7, 73, 107, 118, 4)
+diverN = catmean("data/SA_neutral_", 10)
+
+plotProg(diverN, active, 2, 1, colorbar_title = "ᾱ")
+Plots.pdf("plots/NormAlphas_neutral_SA.pdf")
+
+plotProg(diverN, active, 2, 3, colorbar_title = "β̄")
+Plots.pdf("plots/NormBetas_neutral_SA.pdf")
+
+plotProg(diverN, active, 2, 5, colorbar_title = "ρ̄", logit = true, clim = (0, 0.2))
+Plots.pdf("plots/NormRhos_neutral_SA.pdf")
+
+plotProg(diverN, active, 2, 4, colorbar_title = "β")
+Plots.pdf("plots/Betas_neutral_SA.pdf")
+
+plotProg(diverN, active, 2, 5, colorbar_title = "ρ", logit = false)
+Plots.pdf("plots/Rhos_neutral_SA.pdf")
+
+plotProg(diverN, active, 2, 7, colorbar_title = "γ")
+Plots.pdf("plots/Gammas_neutral_SA.pdf")
+
+function plotProg(div, active, qind;logit=true, kwargs...)
+    l = (@layout [a b c d; e f g h; i j k l; m n o p])
+    years = [1, 25, 50, 118]
+    h = heatmap(background_color = :lightblue, background_color_outside=:white, grid = false, color = :algae_r, layout = l, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm)
+    divs = [1, 3, 5, 7]
+    count =0
+    for j in eachindex(divs)
+        div1 = JLD.load("data/SA_full_1.jld", "diver")
+        div1 = reshape(div1, 7, 73, 107, 118, 4)
+        inds = div1[divs[j], :, :, years, qind]
+        inds[isnan.(inds)] .= 0
+        for k in 1:size(inds, 3)
+            ind = @view inds[:,:, k]
+            ind[.!(active)] .= NaN
+        end
+        maxs = ifelse(logit, maximum(log.(1 .+ inds[.!isnan.(inds)])), maximum(inds[.!isnan.(inds)]))
+        mins = ifelse(logit, minimum(log.(1 .+ inds[.!isnan.(inds)])), minimum(inds[.!isnan.(inds)]))
+        for i in eachindex(years)
+            count += 1
+            year = div[divs[j], :, :, years[i], qind]
+            year[isnan.(year)] .= 0
+            year[.!(active)] .= NaN
+            logyear = ifelse(logit, transpose(log.(1 .+ year)), transpose(year))
+            yr = years[i] + 1900
+            mar = ifelse(i == 4, 10.0*Plots.mm, 1.0*Plots.mm,)
+            title = ifelse(j == 1, "$yr", "")
+            h = heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, logyear, background_color = :lightblue, background_color_outside=:white, grid = false, color = :algae_r, subplot = count, clim = (mins, maxs), colorbar = false, right_margin = mar, title = title, aspect_ratio = 1; kwargs...)
+        end
+    end
+    display(h)
+end
+
+plotlyjs()
+#diver = JLD.load("data/SA_full_1.jld", "diver")
+#diver = reshape(diver, 7, 73, 107, 118, 4)
+diverF = catmean("data/SA_full_", 10)
+plotProg(diverF, active, 2)
+Plots.pdf("plots/Total_SA.pdf")
+
+
+#diver = JLD.load("data/SA_neutral_1.jld", "diver")
+#diver = reshape(diver, 7, 73, 107, 118, 4)
+diverN = catmean("data/SA_neutral_", 10)
+plotProg(diverN, active, 2)
+Plots.pdf("plots/Total_neutral_SA.pdf")
+
+## Load CERA climates
+dir1 = "data/CERA"
+tempax1 = readCERA(dir1, "cera_20c_temp2m", "t2m")
+precax1 = readCERA(dir1, "cera_20c_totalprec", "tp")
+soilwaterax1 = readCERA(dir1, "cera_20c_soilwater1", "swvl1")
+solarradax1 = readCERA(dir1, "cera_20c_surfacenetsolar", "ssr")
+
+times = [collect(1979year:1month:(1980year - 1.0month)),
+    collect(1980year:1month:(1990year - 1.0month)),
+    collect(1990year:1month:(2000year - 1.0month)),
+    collect(2000year:1month:(2010year - 1.0month)),
+    collect(2010year:1month:(2019year- 1.0month))]
+
+# Load ERA climates
+dir1 = "data/ERA"
+tempax2 = readERA(dir1, "era_int_temp2m_", "t2m", times)
+precax2 = readERA(dir1, "era_int_totalprec_", "tp", times)
+soilwaterax2 = readERA(dir1, "era_int_soilwater1", "swvl1", times)
+solarradax2 = readERA(dir1, "era_int_netsolar", "ssr", times)
+
+# Concatenate and crop to Africa
+temp = cat(tempax1.array[:, :, 1901year .. (1979year-1month)], tempax2.array, dims = 3)
+prec = cat(precax1.array[:, :, 1901year .. (1979year-1month)], precax2.array, dims = 3)
+prec[prec .< 0m] *= 0
+soilwater = cat(soilwaterax1.array[:, :, 1901year .. (1979year-1month)], soilwaterax2.array, dims = 3)
+soilwater[soilwater .< 0m^3] *= 0
+solarrad = cat(solarradax1.array[:, :, 1901year .. (1979year-1month)], solarradax2.array, dims = 3)
+solarrad[solarrad .< 0J/m^2] *= 0
+
+sa_temp = ERA(temp[-85°.. -30.25°, -60.25°.. 20°, :])
+sa_prec = ERA(prec[-85°.. -30.25°, -60.25°.. 20°, :])
+sa_prec.array = AxisArray(uconvert.(mm, sa_prec.array), sa_prec.array.axes)
+
+# Convert water and solar to the right area/volume for one grid square
+sa_water = uconvert.(m^3, soilwater[-85°.. -30.25°, -60.25°.. 20°, :] .* (80km * 80km * 7cm) ./ m^3)
+sa_solar = uconvert.(kJ, solarrad[-85°.. -30.25°, -60.25°.. 20°, :] .* (80km * 80km))
+
+pyplot()
+tempchange = mapslices(mean, sa_temp.array[:, :, 709:end]./K, dims =3)[:, :, 1] .- mapslices(mean, sa_temp.array[:, :, 1:708]./K, dims =3)[:, :, 1]
+tempchange[.!(active)] .= NaN
+heatmap(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(tempchange), layout = (@layout [a b;c d]), subplot = 1, background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1000, 750), title = "Temperature (K)", clim = (-3, 3))
+precchange = mapslices(mean, sa_prec.array[:, :, 709:end]./mm, dims =3)[:, :, 1] .- mapslices(mean, sa_prec.array[:, :, 1:708]./mm, dims =3)[:, :, 1]
+precchange[.!(active)] .= NaN
+heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(precchange), layout = (@layout [a b;c d]), subplot = 2, background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1000, 750), title = "Precipitation (mm)", clim = (-4, 4))
+waterchange = mapslices(mean, africa_water[:, :, 709:end]./m^3, dims =3)[:, :, 1] .- mapslices(mean, africa_water[:, :, 1:708]./m^3, dims =3)[:, :, 1]
+waterchange[.!(active)] .= NaN
+heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(waterchange), layout = (@layout [a b;c d]), subplot = 3, background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1000, 750), title = "Soil water volume (m³)", clim = (-7e7, 7e7))
+solarchange = mapslices(mean, africa_solar[:, :, 709:end]./kJ, dims =3)[:, :, 1] .- mapslices(mean, africa_solar[:, :, 1:708]./kJ, dims =3)[:, :, 1]
+solarchange[.!(active)] .= NaN
+heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(solarchange), layout = (@layout [a b;c d]), subplot = 4, background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1000, 750), title = "Solar radiation (kJ)", clim = (-2e13, 2e13))
+Plots.pdf("plots/ClimateChanges50.pdf")
+
+
+function catreps(filename::String, num::Int64)
+    diver = JLD.load(filename*"1.jld", "diver")
+    diver = reshape(diver, 7, 73, 107, 118, 4)
+    for i in 2:num
+        diveri = JLD.load(filename*"$i.jld", "diver")
+        diveri = reshape(diveri, 7, 73, 107, 118, 4)
+        diver = cat(diver, diveri, dims = 6)
+    end
+    return diver
+end
+diver = catreps("data/SA_full_", 10)
+diverN = catreps("data/SA_neutral_", 10)
+#slopemat = slopediv(diver[:, :, :, :, 2, :]) .* 10
+slopemat = slopediv(diver) .* 10
+slopematN = slopediv(diverN) .* 10
+meanslope = mapslices(mean, slopemat, dims = 5)[:, :, :, :, 1]
+meanslopeN = mapslices(mean, slopematN, dims = 5)[:, :, :, :, 1]
+meandiff = meanslope .- meanslopeN
+#meanslope[:, 20, 84] .= 0
+#meanslope[:, 98, 29] .= 0
+pyplot()
+for i in 1:4
+    normalpha = meanslope[1, :, :, i]
+    normalpha[isnan.(normalpha)] .= 0
+    normalpha[.!(active)] .= NaN
+    qs = [0,1,2,Inf]
+    if i ==1
+        q = Int64(qs[i])
+        h = heatmap(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(normalpha),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-200, 200), layout = (@layout [a b;c d]), title = "q = $q", aspect_ratio=1)
+    else
+        if i < 4
+            q = Int64(qs[i])
+        else
+            q = Inf
+        end
+        title = ifelse(i==4, "q = ∞", "q = $q")
+        h = heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(normalpha),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-100, 100),subplot = i, title = title, aspect_ratio=1)
+    end
+    display(h)
+end
+Plots.png("plots/ChangeNormAlphasSA.png")
+
+normalpha = meanslope[1, :, :]
+normalpha[isnan.(normalpha)] .= 0
+normalpha[.!(active)] .= NaN
+h = heatmap(transpose(normalpha),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-4, 4))
+
+normbeta = meanslope[3, :, :, 2]
+normbeta[isnan.(normbeta)] .= 0
+normbeta[.!(active)] .= NaN
+h = heatmap(transpose(normbeta),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-7e4, 7e4))
+
+beta = meanslope[4, :, :]
+beta[isnan.(beta)] .= 0
+beta[.!(active)] .= NaN
+h = heatmap(transpose(beta),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-0.05, 0.05))
+
+normrho = meanslope[5, :, :, 2]
+normrho[isnan.(normrho)] .= 0
+normrho[.!(active)] .= NaN
+h = heatmap(transpose(normrho),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-0.005, 0.005))
+
+for i in 1:4
+    normrho = meanslope[5, :, :, i]
+    normrho[isnan.(normrho)] .= 0
+    normrho[.!(active)] .= NaN
+    qs = [0,1,2,Inf]
+    if i ==1
+        q = Int64(qs[i])
+        h = heatmap(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(normrho),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-0.02, 0.02), layout = (@layout [a b;c d]), title = "q = $q",minorgrid=false, aspect_ratio=1)
+    else
+        if i < 4
+            q = Int64(qs[i])
+        else
+            q = Inf
+        end
+        title = ifelse(i==4, "q = ∞", "q = $q")
+        h = heatmap!(-84.25:0.75:-31, -59.75:0.75:19.25, transpose(normrho),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-0.02, 0.02), subplot = i, title = title, aspect_ratio=1)
+    end
+    display(h)
+end
+Plots.png("plots/ChangeNormRhosSA.png")
+
+rho = meanslope[6, :, :]
+rho[isnan.(rho)] .= 0
+rho[.!(active)] .= NaN
+h = heatmap(transpose(rho),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-5e2, 5e2))
+
+
+gamma = meanslope[7, :, :]
+gamma[isnan.(gamma)] .= 0
+gamma[.!(active)] .= NaN
+h = heatmap(transpose(gamma),background_color = :lightblue, background_color_outside=:white, grid = false, color = :RdBu, size = (1500, 1125), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 1.0*Plots.mm, clim = (-1e2, 1e2))
+
+meanslope = mapslices(mean, slopemat, dims = 4)[:, :, :, 1]
