@@ -36,10 +36,10 @@ function ecopopulate!(ml::GridLandscape, spplist::SpeciesList,
 end
 
 function runSim()
-    gbif = JuliaDB.load("data/Full_GBIF_africa")
-    traits = JuliaDB.load("data/Africa_traits")
-    traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.prec_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
-    gbif = filter(gb -> gb.SppID in select(traits, :SppID), gbif)
+    gbif = JuliaDB.load("data/Full_GBIF_africa_new")
+    traits = JuliaDB.load("data/Africa_traits_new")
+    traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.tp_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
+    gbif = filter(gb -> gb.SppID in collect(select(traits, :SppID)), gbif)
 
     file = "data/Africa.tif"
     africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]
@@ -63,12 +63,12 @@ function runSim()
     tsd = collect(select(traits, :tmin_sd))
     temp_traits = GaussTrait(tmean, tsd)
 
-    pmean = collect(select(traits, :prec_mean))
-    psd = collect(select(traits, :prec_sd))
+    pmean = uconvert.(mm, collect(select(traits, :tp_mean)))
+    psd = uconvert.(mm, collect(select(traits, :tp_sd)))
     prec_traits = GaussTrait(pmean, psd)
 
     av_dist = rand(Uniform(0.6, 2.4), numSpecies) .* km
-    kernel = GaussianKernel(av_dist, 10e-10)
+    kernel = GaussianKernel.(av_dist, 10e-10)
     movement = BirthOnlyMovement(kernel, NoBoundary())
 
     abun = rand(Multinomial(individuals, numSpecies))
@@ -133,14 +133,14 @@ function runSim()
     rel1 = Gauss{eltype(ae.habitat.h1)}()
     rel2 = Gauss{eltype(ae.habitat.h2)}()
     rel = multiplicativeTR2(rel1, rel2)
-    eco = Ecosystem(emptypopulate!, sppl, ae, rel)
+    eco = Ecosystem(sppl, ae, rel)
 
     file = "data/Africa_effort.tif"
     effort = Array(readfile(file, -25°, 50°, -35°, 40°))[:, end:-1:1]
     effort[isnan.(effort)] .= 1
     #effort[effort .> 1e3] .= 1e3
 
-    start = startingArray(gbif, numSpecies) .* hcat(effort[1:end]...)
+    start = startingArray(gbif, numSpecies, true) .* hcat(effort[1:end]...)
 
     start[start .> 0] .= 1
 
@@ -163,7 +163,7 @@ function runSim()
     eco.abundances.matrix .+= adjusted_start
     eco.abenv.budget.b2.matrix .+= 1e-9m^3
     fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1), size(eco.abundances.matrix, 2))
-    reverseBurnin!(eco, 118years - 1month, 1month, 10years, "/media/storage/Chapter5/Africa/burnin2/", gbif, effort, fillarray)
+    reverseBurnin!(eco, 118years - 1month, 1month, 10years, "../sdb/Chapter5/burnin/", gbif, effort, fillarray)
     runburnin!(eco, 10years, 1month)
     return eco
 end

@@ -105,7 +105,7 @@ function startingArray(gbif::JuliaDB.DIndexedTable, numspecies::Int64, kernel::B
     refs = [refdict[y] for y in collect(select(grouped_tab, :refval))]
     counts = collect(select(grouped_tab, :count))
     neighbours = [get_neighbours(zeros(100, 100), convert_coords(refs[i], 100)[1],convert_coords(refs[i], 100)[2], 8) for i in eachindex(refs)]
-    neighbours = [convert_coords(neighbours[x][:, 1], neighbours[x][:, 2], 100) for x in eachindex(neighbours)]
+    neighbours = [convert_coords.(neighbours[x][:, 1], neighbours[x][:, 2], 100) for x in eachindex(neighbours)]
     map(1:length(counts)) do i
         fillarray[sppnames[i], refs[i]] = counts[i]
         fillarray[sppnames[i], neighbours[i]] .= Int64(1e6)
