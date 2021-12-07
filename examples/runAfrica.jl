@@ -142,25 +142,25 @@ function runSim()
 
     start = startingArray(gbif, numSpecies, true) .* hcat(effort[1:end]...)
 
-    start[start .> 0] .= 1
+    # start[start .> 0] .= 1
 
-    adjust1 = [eco.abenv.budget.b1.matrix[x,y,end]/ sum(eco.spplist.requirement.r1.energy .* start[:, convert_coords(x,y, 100)]) for y in 1:100 for x in 1:100]
-    adjust1[.!active[1:end]] .= 0
+    # adjust1 = [eco.abenv.budget.b1.matrix[x,y,end]/ sum(eco.spplist.requirement.r1.energy .* start[:, convert_coords(x,y, 100)]) for y in 1:100 for x in 1:100]
+    # adjust1[.!active[1:end]] .= 0
 
-    adjust2 = [eco.abenv.budget.b2.matrix[x,y,end]/sum(eco.spplist.requirement.r2.energy .* start[:, convert_coords(x,y, 100)])  for y in 1:100 for x in 1:100]
-    adjust2[.!active[1:end]] .= 0
+    # adjust2 = [eco.abenv.budget.b2.matrix[x,y,end]/sum(eco.spplist.requirement.r2.energy .* start[:, convert_coords(x,y, 100)])  for y in 1:100 for x in 1:100]
+    # adjust2[.!active[1:end]] .= 0
 
-    adjust = [minimum([adjust1[i], adjust2[i]]) for i in eachindex(adjust1)]
-    adjust[isnan.(adjust)] .= 1
-    adjust[isinf.(adjust)] .= 1
+    # adjust = [minimum([adjust1[i], adjust2[i]]) for i in eachindex(adjust1)]
+    # adjust[isnan.(adjust)] .= 1
+    # adjust[isinf.(adjust)] .= 1
 
-    adjust[adjust .< 1] .= 1
-    #adjust[adjust .> 500] .= 500
+    # adjust[adjust .< 1] .= 1
+    # #adjust[adjust .> 500] .= 500
 
-    adjusted_start = round.(Int64, start .* hcat(adjust...))
+    # adjusted_start = round.(Int64, start .* hcat(adjust...))
     #adjusted_start[(adjusted_start .< 1e3) .& (adjusted_start .> 0)] .= 1e3
 
-    eco.abundances.matrix .+= adjusted_start
+    eco.abundances.matrix .+= round.(Int64, start)
     eco.abenv.budget.b2.matrix .+= 1e-9m^3
     fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1), size(eco.abundances.matrix, 2))
     reverseBurnin!(eco, 118years - 1month, 1month, 10years, "../sdb/Chapter5/burnin/", gbif, effort, fillarray)

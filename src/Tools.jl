@@ -8,7 +8,7 @@ using EcoSISTEM.Units
 using AxisArrays
 using JLD2
 using Printf
-import EcoSISTEM: SavedLandscape
+import EcoSISTEM: SavedLandscape, HabitatUpdate
 
 function emptypopulate!(ml::GridLandscape, spplist::SpeciesList,
                    abenv::AB, rel::R) where {AB <: EcoSISTEM.AbstractAbiotic, R <: EcoSISTEM.AbstractTraitRelationship}
@@ -38,14 +38,18 @@ function reverseBurnin!(eco::Ecosystem, duration::Unitful.Time, timestep::Unitfu
 end
 
 function reverseTime!(eco::Ecosystem)
-    eco.abenv.habitat.h1.change.changefun = reverseEraChange
-    eco.abenv.habitat.h2.change.changefun = reverseEraChange
+    newhabchange1 = HabitatUpdate(reverseEraChange, eco.abenv.habitat.h1.change.changefun)
+    newhabchange2 = HabitatUpdate(reverseEraChange, eco.abenv.habitat.h2.change.changefun)
+    eco.abenv.habitat.h1.change = newhabchange1
+    eco.abenv.habitat.h2.change = newhabchange2
     eco.abenv.habitat.h1.time = size(eco.abenv.habitat.h1.matrix, 3)
     eco.abenv.habitat.h2.time = size(eco.abenv.habitat.h2.matrix, 3)
 end
 function forwardTime!(eco::Ecosystem)
-    eco.abenv.habitat.h1.change.changefun = eraChange
-    eco.abenv.habitat.h2.change.changefun = eraChange
+    newhabchange1 = HabitatUpdate(eraChange, eco.abenv.habitat.h1.change.changefun)
+    newhabchange2 = HabitatUpdate(eraChange, eco.abenv.habitat.h2.change.changefun)
+    eco.abenv.habitat.h1.change = newhabchange1
+    eco.abenv.habitat.h2.change = newhabchange2
     eco.abenv.habitat.h1.time = 1
     eco.abenv.habitat.h2.time = 1
 end
