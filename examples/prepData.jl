@@ -49,3 +49,11 @@ phylo_traits_adj = @groupby traits_new :SppID {tmin_mean = adjust(uconvert.(K, :
     tp_mean =  adjust(:tpmean, adjustment[:, 14], mins[14], maxs[14]),
     tp_sd = std(:tpmean)}
 JuliaDB.save(phylo_traits_adj, "Chapter5/data/Africa_traits_new")
+
+
+gbif = JuliaDB.load("data/Full_GBIF_africa_new")
+traits = JuliaDB.load("data/Africa_traits_new")
+traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.tp_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
+gbif = filter(gb -> gb.SppID in collect(select(traits, :SppID)), gbif)
+JuliaDB.save(gbif, "data/GBIF_africa_fil")
+JuliaDB.save(traits, "data/Africa_traits_fil")

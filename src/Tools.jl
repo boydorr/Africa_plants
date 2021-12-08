@@ -18,7 +18,7 @@ end
 
 function reverseBurnin!(eco::Ecosystem, duration::Unitful.Time, timestep::Unitful.Time, cacheInterval::Unitful.Time, cacheFolder::String, gbif::JuliaDB.DIndexedTable, effort::Array{Float64,2}, fillarray::Array{Int64,2}, xmin = -25°, xmax = 50°, ymin = -35°, ymax = 40°)
     reverseTime!(eco)
-    gbif = @transform gbif {intdate = round(Int64, uconvert.(month, :date .- 1901year) ./ month)}
+    gbif = @transform gbif {intdate = round(Int64, uconvert(month, :date - 1901year) / month)}
     gbif = reindex(gbif, :intdate)
     ref = create_reference(0.75)
     newref = ref.array[xmin.. xmax, ymin.. ymax]

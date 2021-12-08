@@ -36,11 +36,8 @@ function ecopopulate!(ml::GridLandscape, spplist::SpeciesList,
 end
 
 function runSim()
-    gbif = JuliaDB.load("data/Full_GBIF_africa_new")
-    traits = JuliaDB.load("data/Africa_traits_new")
-    traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.tp_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
-    gbif = filter(gb -> gb.SppID in collect(select(traits, :SppID)), gbif)
-
+    gbif = JuliaDB.load("data/GBIF_africa_fil")
+    traits = JuliaDB.load("data/Africa_traits_fil")
     file = "data/Africa.tif"
     africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]
     #heatmap(africa)
