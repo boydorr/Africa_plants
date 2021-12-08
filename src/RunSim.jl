@@ -10,10 +10,12 @@ function keepYear!(eco::Ecosystem)
 end
 
 function forwardTime!(eco::Ecosystem)
-    eco.abenv.habitat.h1.change.changefun = eraChange
-    eco.abenv.habitat.h2.change.changefun = eraChange
-    eco.abenv.habitat.h1.time = 1
-    eco.abenv.habitat.h2.time = 1
+  newhabchange1 = HabitatUpdate(eraChange, eco.abenv.habitat.h1.change.rate)
+  newhabchange2 = HabitatUpdate(eraChange, eco.abenv.habitat.h2.change.rate)
+  eco.abenv.habitat.h1.change = newhabchange1
+  eco.abenv.habitat.h2.change = newhabchange2
+  eco.abenv.habitat.h1.time = 1
+  eco.abenv.habitat.h2.time = 1
 end
 
 function eraSteady(eco::Ecosystem, hab::ContinuousTimeHab, timestep::Unitful.Time)

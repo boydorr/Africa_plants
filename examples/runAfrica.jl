@@ -37,6 +37,7 @@ end
 
 function runSim()
     gbif = JuliaDB.load("data/GBIF_africa_fil")
+    gbif = filter(g -> !ismissing(g.date), gbif)
     traits = JuliaDB.load("data/Africa_traits_fil")
     file = "data/Africa.tif"
     africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]

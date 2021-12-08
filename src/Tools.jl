@@ -38,16 +38,16 @@ function reverseBurnin!(eco::Ecosystem, duration::Unitful.Time, timestep::Unitfu
 end
 
 function reverseTime!(eco::Ecosystem)
-    newhabchange1 = HabitatUpdate(reverseEraChange, eco.abenv.habitat.h1.change.changefun)
-    newhabchange2 = HabitatUpdate(reverseEraChange, eco.abenv.habitat.h2.change.changefun)
+    newhabchange1 = HabitatUpdate(reverseEraChange, eco.abenv.habitat.h1.change.rate)
+    newhabchange2 = HabitatUpdate(reverseEraChange, eco.abenv.habitat.h2.change.rate)
     eco.abenv.habitat.h1.change = newhabchange1
     eco.abenv.habitat.h2.change = newhabchange2
     eco.abenv.habitat.h1.time = size(eco.abenv.habitat.h1.matrix, 3)
     eco.abenv.habitat.h2.time = size(eco.abenv.habitat.h2.matrix, 3)
 end
 function forwardTime!(eco::Ecosystem)
-    newhabchange1 = HabitatUpdate(eraChange, eco.abenv.habitat.h1.change.changefun)
-    newhabchange2 = HabitatUpdate(eraChange, eco.abenv.habitat.h2.change.changefun)
+    newhabchange1 = HabitatUpdate(eraChange, eco.abenv.habitat.h1.change.rate)
+    newhabchange2 = HabitatUpdate(eraChange, eco.abenv.habitat.h2.change.rate)
     eco.abenv.habitat.h1.change = newhabchange1
     eco.abenv.habitat.h2.change = newhabchange2
     eco.abenv.habitat.h1.time = 1
