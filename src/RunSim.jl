@@ -5,8 +5,10 @@ using JLD2
 using Printf
 
 function keepYear!(eco::Ecosystem)
-    eco.abenv.habitat.h1.change.changefun = eraSteady
-    eco.abenv.habitat.h2.change.changefun = eraSteady
+  newhabchange1 = HabitatUpdate(eraChange, eco.abenv.habitat.h1.change.rate)
+  newhabchange2 = HabitatUpdate(eraChange, eco.abenv.habitat.h2.change.rate)
+  eco.abenv.habitat.h1.change = newhabchange1
+  eco.abenv.habitat.h2.change = newhabchange2
 end
 
 function forwardTime!(eco::Ecosystem)
