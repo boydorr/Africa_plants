@@ -26,6 +26,7 @@ continents = distribute(continents, 1)
 gbif_new = join(gbif, continents, how = :left, rkey = :refval, lkey = :refval)
 gbif_new = filter(t-> !ismissing(t.continent), gbif_new)
 gbif_new = filter(t-> t.continent == 1.0, gbif_new)
+gbif_new = filter(t-> t.date >= 1901years, gbif_new)
 JuliaDB.save(gbif_new, "Chapter5/data/Full_GBIF_africa_new")
 
 traits = JuliaDB.load("../sdb/PHYLO/CERA_JOIN_SIMPLE")

@@ -36,7 +36,7 @@ function ecopopulate!(ml::GridLandscape, spplist::SpeciesList,
 end
 
 function runSim()
-    gbif = JuliaDB.load("data/GBIF_africa_fil")
+    gbif = JuliaDB.load("data/Full_GBIF_africa_new")
     gbif = filter(g -> !ismissing(g.date), gbif)
     traits = JuliaDB.load("data/Africa_traits_fil")
     file = "data/Africa.tif"
@@ -136,9 +136,10 @@ function runSim()
     file = "data/Africa_effort.tif"
     effort = Array(readfile(file, -25°, 50°, -35°, 40°))[:, end:-1:1]
     effort[isnan.(effort)] .= 1
+    effort[.!active] .= 0.0
     #effort[effort .> 1e3] .= 1e3
 
-    start = startingArray(gbif, numSpecies, true) .* hcat(effort[1:end]...)
+    #start = startingArray(gbif, numSpecies, true) .* hcat(effort[1:end]...)
 
     # start[start .> 0] .= 1
 
@@ -158,7 +159,7 @@ function runSim()
     # adjusted_start = round.(Int64, start .* hcat(adjust...))
     #adjusted_start[(adjusted_start .< 1e3) .& (adjusted_start .> 0)] .= 1e3
 
-    eco.abundances.matrix .+= round.(Int64, start)
+    #eco.abundances.matrix .+= round.(Int64, start)
     eco.abenv.budget.b2.matrix .+= 1e-9m^3
     fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1), size(eco.abundances.matrix, 2))
     reverseBurnin!(eco, 118years - 1month, 1month, 10years, "../sdb/Chapter5/burnin/", gbif, effort, fillarray)
@@ -172,7 +173,7 @@ end
 # end
 
 output = runSim()
-JLD.save("Africa_new_2.jld", "diver", EcoSISTEM.SavedLandscape(output.abundances))
+JLD.save("Africa_start2.jld", "diver", EcoSISTEM.SavedLandscape(output.abundances))
 sum(mapslices(sum, output.abundances.matrix, dims =2)[:,1].>0)
 
 function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cacheFile::String)
