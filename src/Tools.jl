@@ -25,15 +25,15 @@ function reverseBurnin!(eco::Ecosystem, duration::Unitful.Time, timestep::Unitfu
     refdict = Dict(zip(newref[1:end], 1:length(newref)))
     times = length(0s:timestep:duration)
     effort = hcat(effort[1:end]...)
-    total_dat = @groupby gbif :intdate {n = length(:UID)}
-    addIndvs = cumsum(collect(JuliaDB.select(total_dat, :n)))
-    # reversed cumulative sum
-    totalIndv = sum(select(total_dat, :n))
+    # total_dat = @groupby gbif :intdate {n = length(:UID)}
+    # addIndvs = cumsum(collect(JuliaDB.select(total_dat, :n)))
+    # # reversed cumulative sum
+    # totalIndv = sum(select(total_dat, :n))
     for i in 1:times
         if i in collect(select(gbif, :intdate))
             eco.abundances.matrix .+= round.(Int64, db_to_array(gbif, size(eco.abundances.matrix, 1), i, fillarray, refdict) .* effort) 
-            eco.abenv.budget.b1.matrix[:, :, i] ./= (addIndvs[i]/totalIndv)
-            eco.abenv.budget.b2.matrix[:, :, i] ./= (addIndvs[i]/totalIndv)
+            # eco.abenv.budget.b1.matrix[:, :, i] ./= (addIndvs[i]/totalIndv)
+            # eco.abenv.budget.b2.matrix[:, :, i] ./= (addIndvs[i]/totalIndv)
         end
         update!(eco, timestep)
         if mod(i*timestep, cacheInterval) == 0.0year
