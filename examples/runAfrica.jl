@@ -36,10 +36,10 @@ function ecopopulate!(ml::GridLandscape, spplist::SpeciesList,
 end
 
 function runSim()
-    gbif = JuliaDB.load("data/Full_GBIF_africa_new")
+    gbif = JuliaDB.load("GBIF_africa_fil")
     gbif = filter(g -> !ismissing(g.date), gbif)
-    traits = JuliaDB.load("data/Africa_traits_fil")
-    file = "data/Africa.tif"
+    traits = JuliaDB.load("Africa_traits_fil")
+    file = "Africa.tif"
     africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]
     #heatmap(africa)
 
@@ -59,10 +59,12 @@ function runSim()
 
     tmean = collect(select(traits, :tmin_mean))
     tsd = collect(select(traits, :tmin_sd))
+    tsd .+= (0.1 * maximum(tsd))
     temp_traits = GaussTrait(tmean, tsd)
 
     pmean = uconvert.(mm, collect(select(traits, :tp_mean)))
     psd = uconvert.(mm, collect(select(traits, :tp_sd)))
+    psd .+= (0.1 * maximum(psd))
     prec_traits = GaussTrait(pmean, psd)
 
     av_dist = rand(Uniform(0.6, 2.4), numSpecies) .* km
@@ -72,8 +74,9 @@ function runSim()
     abun = rand(Multinomial(individuals, numSpecies))
     trts = TraitCollection2(temp_traits, prec_traits)
 
-    death_rates = abs.(rand(Normal(0.15, 0.135), numSpecies)) ./year
-    birth_rates = death_rates
+    # death_rates = abs.(rand(Normal(0.15, 0.135), numSpecies)) ./year
+    # birth_rates = death_rates
+    birth_rates = death_rates = fill(0.15, numSpecies) ./year
     param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates, 1.0, 1e-3, 1.0)
 
     native = fill(true, numSpecies)
@@ -81,7 +84,7 @@ function runSim()
     sppl = SpeciesList(numSpecies, trts, abun, req, movement, param, native)
 
     ## Load CERA climates
-    dir1 = "data/CERA"
+    dir1 = "CERA"
     tempax1 = readCERA(dir1, "cera_20c_temp2m", "t2m")
     precax1 = readCERA(dir1, "cera_20c_totalprec", "tp")
     soilwaterax1 = readCERA(dir1, "cera_20c_soilwater1", "swvl1")
@@ -94,7 +97,7 @@ function runSim()
         collect(2010year:1month:(2019year- 1.0month))]
 
     # Load ERA climates
-    dir1 = "data/ERA"
+    dir1 = "ERA"
     tempax2 = readERA(dir1, "era_int_temp2m_", "t2m", times)
     precax2 = readERA(dir1, "era_int_totalprec_", "tp", times)
     soilwaterax2 = readERA(dir1, "era_int_soilwater1", "swvl1", times)
@@ -133,13 +136,13 @@ function runSim()
     rel = multiplicativeTR2(rel1, rel2)
     eco = Ecosystem(sppl, ae, rel)
 
-    file = "data/Africa_effort.tif"
+    file = "Africa_effort.tif"
     effort = Array(readfile(file, -25°, 50°, -35°, 40°))[:, end:-1:1]
     effort[isnan.(effort)] .= 1
     effort[.!active] .= 0.0
     #effort[effort .> 1e3] .= 1e3
 
-    #start = startingArray(gbif, numSpecies, true) .* hcat(effort[1:end]...)
+    start = startingArray(gbif, numSpecies, true) .* hcat(effort[1:end]...)
 
     # start[start .> 0] .= 1
 
@@ -159,10 +162,10 @@ function runSim()
     # adjusted_start = round.(Int64, start .* hcat(adjust...))
     #adjusted_start[(adjusted_start .< 1e3) .& (adjusted_start .> 0)] .= 1e3
 
-    #eco.abundances.matrix .+= round.(Int64, start)
+    eco.abundances.matrix .+= round.(Int64, start)
     eco.abenv.budget.b2.matrix .+= 1e-9m^3
     fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1), size(eco.abundances.matrix, 2))
-    reverseBurnin!(eco, 118years - 1month, 1month, 10years, "../sdb/Chapter5/burnin/", gbif, effort, fillarray)
+    reverseBurnin!(eco, 118years - 1month, 1month, 10years, "../../sdb/Chapter5/burnin/", gbif, effort, fillarray)
     runburnin!(eco, 10years, 1month)
     return eco
 end
@@ -177,13 +180,12 @@ JLD.save("Africa_start2.jld", "diver", EcoSISTEM.SavedLandscape(output.abundance
 sum(mapslices(sum, output.abundances.matrix, dims =2)[:,1].>0)
 
 function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cacheFile::String)
-    gbif = JuliaDB.load("data/Full_GBIF_africa")
-    traits = JuliaDB.load("data/Africa_traits")
-    traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.prec_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
-    gbif = filter(gb -> gb.SppID in select(traits, :SppID), gbif)
+    gbif = JuliaDB.load("GBIF_africa_fil")
+    gbif = filter(g -> !ismissing(g.date), gbif)
+    traits = JuliaDB.load("Africa_traits_fil")
 
-    file = "data/Africa.tif"
-    africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]
+    file = "Africa.tif"
+    africa = readfile(file, -25.0°, 50.0°, -35.0°, 40.0°)[:, end:-1:1]
     #heatmap(africa)
 
     # Set up grid
@@ -201,20 +203,22 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
 
     tmean = collect(select(traits, :tmin_mean))
     tsd = collect(select(traits, :tmin_sd))
+    tsd .+= (0.1 * maximum(tsd))
     temp_traits = GaussTrait(tmean, tsd)
 
-    pmean = collect(select(traits, :prec_mean))
-    psd = collect(select(traits, :prec_sd))
+    pmean = collect(select(traits, :tp_mean))
+    psd = collect(select(traits, :tp_sd))
+    psd .+= (0.1 * maximum(psd))
     prec_traits = GaussTrait(pmean, psd)
 
     av_dist = rand(Uniform(0.6, 2.4), numSpecies) .* km
-    kernel = GaussianKernel(av_dist, 10e-10)
+    kernel = GaussianKernel.(av_dist, 10e-10)
     movement = BirthOnlyMovement(kernel, NoBoundary())
 
     abun = rand(Multinomial(individuals, numSpecies))
     trts = TraitCollection2(temp_traits, prec_traits)
 
-    death_rates = abs.(rand(Normal(0.15, 0.135), numSpecies)) ./year
+    death_rates = abs.(rand(Normal(0.15, 0.001), numSpecies)) ./year
     birth_rates = death_rates
     param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates, 1.0, 1e-3, 1.0)
 
@@ -223,7 +227,7 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     sppl = SpeciesList(numSpecies, trts, abun, req, movement, param, native)
 
     ## Load CERA climates
-    dir1 = "data/CERA"
+    dir1 = "CERA"
     tempax1 = readCERA(dir1, "cera_20c_temp2m", "t2m")
     precax1 = readCERA(dir1, "cera_20c_totalprec", "tp")
     soilwaterax1 = readCERA(dir1, "cera_20c_soilwater1", "swvl1")
@@ -236,7 +240,7 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
         collect(2010year:1month:(2019year- 1.0month))]
 
     # Load ERA climates
-    dir1 = "data/ERA"
+    dir1 = "ERA"
     tempax2 = readERA(dir1, "era_int_temp2m_", "t2m", times)
     precax2 = readERA(dir1, "era_int_totalprec_", "tp", times)
     soilwaterax2 = readERA(dir1, "era_int_soilwater1", "swvl1", times)
@@ -253,7 +257,7 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
 
     africa_temp = ERA(temp[-25°.. 50°, -35°.. 40°, :])
     africa_prec = ERA(prec[-25°.. 50°, -35°.. 40°, :])
-    africa_prec.array = AxisArray(uconvert.(mm, africa_prec.array), africa_prec.array.axes)
+    africa_prec.array .= AxisArray(uconvert.(mm, africa_prec.array), africa_prec.array.axes)
 
     # Convert water and solar to the right area/volume for one grid square
     africa_water = uconvert.(m^3, soilwater[-25°.. 50°, -35°.. 40°, :] .* (80km * 80km * 7cm) ./ m^3)
@@ -273,7 +277,7 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     rel1 = Gauss{eltype(ae.habitat.h1)}()
     rel2 = Gauss{eltype(ae.habitat.h2)}()
     rel = multiplicativeTR2(rel1, rel2)
-    eco = Ecosystem(emptypopulate!, sppl, ae, rel)
+    eco = Ecosystem(sppl, ae, rel)
 
     output = JLD.load(outputfile, "diver")
     eco.abundances = GridLandscape(output, (numSpecies, grd[1], grd[2]))
@@ -285,7 +289,7 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
 
     #runburnin!(eco, simDict["burnin"], simDict["timestep"])
     if repeatYear
-        Chapter5.keepYear!(eco)
+        Africa.keepYear!(eco)
     end
     runsim!(diver, eco, simDict, cacheFolder)
     return diver
@@ -296,14 +300,14 @@ end
 
 #output = buildEco("Africa_diversity_1.jld", true, "/media/storage/Chapter5/neutral/")
 #JLD.save("Africa_neutral_1.jld", "diver", output)
-
+output = buildEco("1901.jld", false, "/home/claireh/sdb/Chapter5/run/", "Africa_1")
 
 # ws2
 for i in 1:10
-    output = buildEco("Africa_new_1.jld", false, "/media/storage/Chapter5/Africa/new/run/", "Africa_$i")
+    output = buildEco("1901.jld", false, "/media/storage/Chapter5/Africa/new/run/", "Africa_$i")
     JLD.save("Africa_new_full_$i.jld", "diver", output)
 
-    output = buildEco("Africa_new_1.jld", true, "/media/storage/Chapter5/Africa/new/neutral/", "Africa_$i")
+    output = buildEco("1901.jld", true, "/media/storage/Chapter5/Africa/new/neutral/", "Africa_$i")
     JLD.save("Africa_new_neutral_$i.jld", "diver", output)
     print("$i \n")
 end

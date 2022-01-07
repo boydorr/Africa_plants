@@ -13,6 +13,7 @@ using Random
 plotlyjs()
 
 output = JLD.load("data/1901.jld", "1901")
+output = JLD.load("data/Africa_start3.jld", "diver")
 africa_abun = norm_sub_alpha(Metacommunity(output), 0.0)[:diversity]
 africa_abun = transpose(reshape(africa_abun, 100, 100))
 africa = readfile("data/Africa.tif", -25°, 50°, -35°, 40°)[:, end:-1:1]
@@ -21,7 +22,7 @@ africa_abun[isnan.(africa_abun)] .= 0
 africa_abun[.!(transpose(active))] .= NaN
 
 heatmap(africa_abun, background_color = :lightblue, background_color_outside=:white, grid = false, color = cgrad(:algae, scale = :exp), aspect_ratio = 1)
-Plots.pdf("plots/1901.pdf")
+Plots.pdf("plots/1901_full.pdf")
 
 output = EcoSISTEM.GridLandscape(JLD.load("Africa_new_1.jld", "diver"), (41844, 100, 100))
 africa_abun = norm_sub_alpha(Metacommunity(output.matrix), 0.0)[:diversity]
