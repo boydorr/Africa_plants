@@ -39,7 +39,7 @@ function runburnin!(eco::Ecosystem, duration::Unitful.Time, timestep::Unitful.Ti
 end
 
 function simulate_record_diversity!(storage::AbstractArray, eco::Ecosystem, times::Unitful.Time, interval::Unitful.Time, timestep::Unitful.Time, divfuns::Array{Function, 1}, qs::Vector{Float64}, cacheInterval::Unitful.Time, cacheFolder::String, scenario_name::String)
-  #mod(interval,timestep) == 0.0year || error("Interval must be a multiple of timestep")
+  mod(interval,timestep) == 0.0year || error("Interval must be a multiple of timestep")
   record_seq = 0s:interval:times
   time_seq = 0s:timestep:times
   counting = 0
