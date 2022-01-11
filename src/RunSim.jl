@@ -40,8 +40,8 @@ end
 
 function simulate_record_diversity!(storage::AbstractArray, eco::Ecosystem, times::Unitful.Time, interval::Unitful.Time, timestep::Unitful.Time, divfuns::Array{Function, 1}, qs::Vector{Float64}, cacheInterval::Unitful.Time, cacheFolder::String, scenario_name::String)
   mod(interval,timestep) == 0.0year || error("Interval must be a multiple of timestep")
-  record_seq = 0s:interval:times
-  time_seq = 0s:timestep:times
+  record_seq = uconvert.(unit(timestep), 0s:interval:times)
+  time_seq = uconvert.(unit(timestep), 0s:timestep:times)
   counting = 0
   for i in 1:length(time_seq)
       update!(eco, timestep);
