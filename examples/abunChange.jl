@@ -1,5 +1,5 @@
 using JLD
-#using Plots
+using Plots
 using Statistics
 using StatsBase
 using Printf
@@ -15,8 +15,8 @@ function catabun(file1::String)
 end
 
 function catmean(file1)
-    abun = catabun(file1*"1")
-    for j in 2:10
+    abun = catabun(file1*"2")
+    for j in 3:10
         abun = abun .+ catabun(file1*"$j")
         print(j, "\n")
     end
@@ -24,7 +24,7 @@ function catmean(file1)
     return DataFrame(SppID = 1:size(meanabun, 1),  startabun = meanabun[:,1], endabun = meanabun[:,2])
 end
 
-abun = catmean("cache/Africa_")
+abun = catmean("run/cache/Africa_")
 neutralabun = catmean("neutral/cache/Africa_")
 
 save("AbunFull.jld", "abun", abun)
@@ -38,15 +38,28 @@ neutralabun = catmean("neutral/cache/SA_")
 save("/home/claireh/Documents/Chapter5/AbunNeutralSA.jld", "abun", neutralabun)
 
 
-abun = JLD.load("data/AbunFull.jld", "abun")
-neutralabun = load("data/AbunNeutral.jld", "abun")
+abun = load("data/AbunFull.jld2", "abun")
+neutralabun = load("data/AbunNeutral.jld2", "neutralabun")
 abun = abun[abun[:startabun] .!= 0, :]
 neutralabun = neutralabun[neutralabun[:startabun] .!= 0, :]
 
 plotlyjs()
 abunorder = sortperm(abun, :startabun, rev = true)
-bar(abun[abunorder, :startabun], grid = false, xlab = "Ranked species", ylab = "Abundance 1901", size = (1200, 800), guidefontsize = 12,tickfontsize= 12, titlefontsize=18, margin = 2.0*Plots.mm, legendfontsize = 12, subplot = 1, left_margin = 5.0*Plots.mm, color = 2, layout = (@layout [a; b]), label = "",ylim = (1, 1e12), linecolor = :match, guide_position = :top, bottom_margin = 0.0*Plots.mm, yscale = :log10)
-bar!(abun[abunorder, :endabun], xlab = "Ranked species", ylab = "Abundance 2018", ylim = (1, 1e12), subplot = 2, grid = false, guidefontsize = 12, tickfontsize= 12, titlefontsize=18, margin = 2.0*Plots.mm, legendfontsize = 12, color =2, linecolor = :match, yflip = true, guide_position = :top, link = :x, top_margin = 0.0*Plots.mm, label = "", yscale = :log10)
+bar(abun[abunorder, :startabun], grid = false, xlab = "Ranked species", 
+ylab = "Abundance 1901", size = (1200, 800), 
+guidefontsize = 12,tickfontsize= 12, titlefontsize=18, 
+margin = 2.0*Plots.mm, legendfontsize = 12, subplot = 1, 
+left_margin = 5.0*Plots.mm, color = 2, 
+layout = (@layout [a; b]), label = "",ylim = (1, 1e12), 
+linecolor = :match, guide_position = :top, 
+bottom_margin = 0.0*Plots.mm, yscale = :log10)
+bar!(abun[abunorder, :endabun], xlab = "Ranked species", 
+ylab = "Abundance 2018", ylim = (1, 1e12), subplot = 2, 
+grid = false, guidefontsize = 12, tickfontsize= 12, 
+titlefontsize=18, margin = 2.0*Plots.mm, 
+legendfontsize = 12, color =2, linecolor = :match,
+ yflip = true, guide_position = :top, link = :x, 
+ top_margin = 0.0*Plots.mm, label = "", yscale = :log10)
 plot!(abun[abunorder, :startabun], subplot = 2, color = :black, label = "", linewidth = 0.5, yscale = :log10)
 Plots.pdf("plots/ClimateAbun.pdf")
 
@@ -141,13 +154,13 @@ end
 function catmean(file1)
     spp = zeros(10, 2)
     for j in 1:10
-        spp[j, :] = SpeciesLoss(file1*"$j.jld")
+        spp[j, :] = SpeciesLoss(file1*"$j")
         print(j, "\n")
     end
     return spp
 end
 
-abun = catmean("cache/Africa_full_")
+abun = catmean("runcache/Africa_")
 save("SRChangeFull.jld", "abun", abun)
 
 neutralabun = catmean("neutral/cache/Africa_")
