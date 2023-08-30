@@ -8,8 +8,6 @@ using Statistics
 using StatsBase
 using OnlineStats
 
-# Using data generated from https://github.com/boydorr/ClimatePref.jl
-
 function adjust(x, adj, min, max)
     edges = range(min, stop = max, length = 1000)
     h = Hist(edges)
@@ -20,24 +18,25 @@ function adjust(x, adj, min, max)
     return mean(edges[1:(end-1)], weights(counts))
 end
 
-gbif = JuliaDB.load("data/Small_GBIF_new")
-continents = JuliaDB.load("data/Continents")
+
+gbif = JuliaDB.load("gbif/full_data/Small_GBIF_new")
+continents = JuliaDB.load("../sdb/PHYLO/Continents")
 continents = distribute(continents, 1)
 
 gbif_new = join(gbif, continents, how = :left, rkey = :refval, lkey = :refval)
 gbif_new = filter(t-> !ismissing(t.continent), gbif_new)
 gbif_new = filter(t-> t.continent == 1.0, gbif_new)
 gbif_new = filter(t-> t.date >= 1901years, gbif_new)
-JuliaDB.save(gbif_new, "data/Full_GBIF_africa_new")
+JuliaDB.save(gbif_new, "Chapter5/data/Full_GBIF_africa_new")
 
-traits = JuliaDB.load("data/CERA_JOIN_SIMPLE")
-continents = JuliaDB.load("data/Continents")
+traits = JuliaDB.load("../sdb/PHYLO/CERA_JOIN_SIMPLE")
+continents = JuliaDB.load("../sdb/PHYLO/Continents")
 continents = distribute(continents, 1)
 traits_new = join(traits, continents, how = :left, rkey = :refval, lkey = :refval)
 traits_new = filter(t-> !ismissing(t.continent), traits_new)
 traits_new = filter(t-> t.continent == 1.0, traits_new)
-evi_counts = JLD.load("data/Total_evi_counts_1.jld", "total")
-gbif_counts = JLD.load("dataTotal_gbif_counts_1.jld", "total")
+evi_counts = JLD.load("../sdb/PHYLO/Total_evi_counts_1.jld", "total")
+gbif_counts = JLD.load("../sdb/PHYLO/Total_gbif_counts_1.jld", "total")
 adjustment = gbif_counts ./ evi_counts
 adjustment[isnan.(adjustment)] .= 1
 adjustment[isinf.(adjustment)] .= 1
@@ -50,7 +49,7 @@ phylo_traits_adj = @groupby traits_new :SppID {tmin_mean = adjust(uconvert.(K, :
     ssr =  adjust(:ssrmean, adjustment[:, 13], mins[13], maxs[13]), 
     tp_mean =  adjust(:tpmean, adjustment[:, 14], mins[14], maxs[14]),
     tp_sd = std(:tpmean)}
-JuliaDB.save(phylo_traits_adj, "data/Africa_traits_new")
+JuliaDB.save(phylo_traits_adj, "Chapter5/data/Africa_traits_new")
 
 
 gbif = JuliaDB.load("data/Full_GBIF_africa_new")
