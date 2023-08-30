@@ -1,4 +1,4 @@
-using Africa_plants
+using Africa
 using Diversity
 using JLD2
 using Unitful
