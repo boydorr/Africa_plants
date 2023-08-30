@@ -122,19 +122,3 @@ function startingArray(gbif::JuliaDB.DIndexedTable, numspecies::Int64, kernel::B
     end
     return fillarray
 end
-
-# using GLM
-# using DataFrames
-# function linmod(x)
-#     df = DataFrame(X = x, Y = 1:length(x))
-#     mod = GLM.lm(@formula(X ~ Y), df)
-#     return coef(mod)[2]
-# end
-#
-#
-# function slopediv(mat::Array{Float64, 5})
-#     return mapslices(linmod, mat, dims = 4)[:, :, :, 1, :]
-# end
-# function slopediv(mat::Array{Float64, 6})
-#     return mapslices(linmod, mat, dims = 4)[:, :, :, 1, :, :]
-# end

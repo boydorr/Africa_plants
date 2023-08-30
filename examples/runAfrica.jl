@@ -1,11 +1,9 @@
-using Africa_plants
+using Africa
 using Diversity
-using JLD
+using JLD2
 using Unitful
 using Unitful.DefaultSymbols
 using EcoSISTEM.Units
-using JuliaDB
-using JuliaDBMeta
 using EcoSISTEM.ClimatePref
 using Statistics
 using StatsBase
@@ -15,9 +13,7 @@ using AxisArrays
 using Random
 
 function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cacheFile::String)
-    gbif = JuliaDB.load("data/GBIF_africa_fil")
-    gbif = filter(g -> !ismissing(g.date), gbif)
-    traits = JuliaDB.load("Africa_traits_fil")
+    JLD2.@load("data/Africa_traits.jld2")
 
     file = "data/Africa.tif"
     africa = readfile(file, -25.0°, 50.0°, -35.0°, 40.0°)[:, end:-1:1]
@@ -27,21 +23,21 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     individuals = 0
 
     # Set up species requirements
-    solarreq = collect(select(traits, :ssr))
+    solarreq = traits.ssr
     req1 = SolarRequirement(solarreq .* m^2)
 
-    waterreq = collect(select(traits, :swvl1))
+    waterreq = traits.swvl1
     req2 = VolWaterRequirement(waterreq)
 
     req = ReqCollection2(req1, req2)
 
-    tmean = collect(select(traits, :tmin_mean))
-    tsd = collect(select(traits, :tmin_sd))
+    tmean = traits.tmin_mean
+    tsd = traits.tmin_sd
     tsd .+= (0.1 * maximum(tsd))
     temp_traits = GaussTrait(tmean, tsd)
 
-    pmean = collect(select(traits, :tp_mean))
-    psd = collect(select(traits, :tp_sd))
+    pmean = traits.tp_mean
+    psd = traits.tp_sd
     psd .+= (0.1 * maximum(psd))
     prec_traits = GaussTrait(pmean, psd)
 
@@ -59,19 +55,6 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     native = fill(true, numSpecies)
 
     sppl = SpeciesList(numSpecies, trts, abun, req, movement, param, native)
-
-    ## Load CERA climates
-    dir1 = "data/CERA"
-    tempax1 = readCERA(dir1, "cera_20c_temp2m", "t2m")
-    precax1 = readCERA(dir1, "cera_20c_totalprec", "tp")
-    soilwaterax1 = readCERA(dir1, "cera_20c_soilwater1", "swvl1")
-    solarradax1 = readCERA(dir1, "cera_20c_surfacenetsolar", "ssr")
-
-    times = [collect(1979year:1month:(1980year - 1.0month)),
-        collect(1980year:1month:(1990year - 1.0month)),
-        collect(1990year:1month:(2000year - 1.0month)),
-        collect(2000year:1month:(2010year - 1.0month)),
-        collect(2010year:1month:(2019year- 1.0month))]
 
     # Load CERA-20C/ERA climates
     JLD2.@load "Africa_temp"

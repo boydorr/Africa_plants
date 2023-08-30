@@ -59,3 +59,10 @@ traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.tp_sd > 0.
 gbif = filter(gb -> gb.SppID in collect(select(traits, :SppID)), gbif)
 JuliaDB.save(gbif, "data/GBIF_africa_fil")
 JuliaDB.save(traits, "data/Africa_traits_fil")
+
+# Also save JLD2 versions for ease of use 
+gbif = filter(g -> !ismissing(g.date), gbif)
+gbif_dat = DataFrame(collect(gbif))
+JLD2.@save "data/GBIF_africa.jld2" gbif_dat
+traits_dat = DataFrame(collect(traits))
+JLD2.@save "data/Africa_traits.jld2" traits_dat
