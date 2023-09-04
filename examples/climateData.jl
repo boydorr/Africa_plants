@@ -41,7 +41,7 @@ solarrad[solarrad .< 0J/m^2] *= 0
 
 africa_temp = ERA(temp[-25°.. 50°, -35°.. 40°, :])
 africa_prec = ERA(prec[-25°.. 50°, -35°.. 40°, :])
-africa_prec.array .= AxisArray(uconvert.(mm, africa_prec.array), africa_prec.array.axes)
+africa_prec.array = AxisArray(uconvert.(mm, africa_prec.array), africa_prec.array.axes)
 JLD2.@save "Africa_temp.jld2" africa_temp
 JLD2.@save "Africa_prec.jld2" africa_prec
 

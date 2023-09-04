@@ -8,19 +8,18 @@ using JuliaDB
 using JuliaDBMeta
 using EcoSISTEM.ClimatePref
 using Statistics
-using StatsBase
 using EcoSISTEM
 using Distributions
 using AxisArrays
 using Random
 
+# Run burnin backwards from present day to 1901
 function runSim()
-    gbif = JuliaDB.load("GBIF_africa_fil")
+    gbif = JuliaDB.load("data/GBIF_africa_fil")
     gbif = filter(g -> !ismissing(g.date), gbif)
-    traits = JuliaDB.load("Africa_traits_fil")
-    file = "Africa.tif"
+    traits = JuliaDB.load("data/Africa_traits_fil")
+    file = "data/Africa.tif"
     africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]
-    #heatmap(africa)
 
     # Set up grid
     numSpecies = length(traits); grd = (100,100); area = 64e6km^2;
@@ -60,49 +59,15 @@ function runSim()
 
     sppl = SpeciesList(numSpecies, trts, abun, req, movement, param, native)
 
-    ## Load CERA climates
-    dir1 = "CERA"
-    tempax1 = readCERA(dir1, "cera_20c_temp2m", "t2m")
-    precax1 = readCERA(dir1, "cera_20c_totalprec", "tp")
-    soilwaterax1 = readCERA(dir1, "cera_20c_soilwater1", "swvl1")
-    solarradax1 = readCERA(dir1, "cera_20c_surfacenetsolar", "ssr")
-
-    times = [collect(1979year:1month:(1980year - 1.0month)),
-        collect(1980year:1month:(1990year - 1.0month)),
-        collect(1990year:1month:(2000year - 1.0month)),
-        collect(2000year:1month:(2010year - 1.0month)),
-        collect(2010year:1month:(2019year- 1.0month))]
-
-    # Load ERA climates
-    dir1 = "ERA"
-    tempax2 = readERA(dir1, "era_int_temp2m_", "t2m", times)
-    precax2 = readERA(dir1, "era_int_totalprec_", "tp", times)
-    soilwaterax2 = readERA(dir1, "era_int_soilwater1", "swvl1", times)
-    solarradax2 = readERA(dir1, "era_int_netsolar", "ssr", times)
-
-    # Concatenate and crop to Africa
-    temp = cat(tempax1.array[:, :, 1901year .. (1979year-1month)], tempax2.array, dims = 3)
-    prec = cat(precax1.array[:, :, 1901year .. (1979year-1month)], precax2.array, dims = 3)
-    prec[prec .< 0m] *= 0
-    soilwater = cat(soilwaterax1.array[:, :, 1901year .. (1979year-1month)], soilwaterax2.array, dims = 3)
-    soilwater[soilwater .< 0m^3] *= 0
-    solarrad = cat(solarradax1.array[:, :, 1901year .. (1979year-1month)], solarradax2.array, dims = 3)
-    solarrad[solarrad .< 0J/m^2] *= 0
-
-    africa_temp = ERA(temp[-25°.. 50°, -35°.. 40°, :])
-    africa_prec = ERA(prec[-25°.. 50°, -35°.. 40°, :])
-    africa_prec.array = AxisArray(uconvert.(mm, africa_prec.array), africa_prec.array.axes)
-
-    # Convert water and solar to the right area/volume for one grid square
-    africa_water = uconvert.(m^3, soilwater[-25°.. 50°, -35°.. 40°, :] .* (80km * 80km * 7cm) ./ m^3)
-    africa_solar = uconvert.(kJ, solarrad[-25°.. 50°, -35°.. 40°, :] .* (80km * 80km))
-
-    africa_solar = SolarTimeBudget(africa_solar, 1)
-    africa_water = EcoSISTEM.VolWaterTimeBudget(africa_water, 1)
-    bud = BudgetCollection2(africa_solar, africa_water)
-    active =  Array{Bool, 2}(.!isnan.(africa))
+    # Load CERA-20C/ERA climates
+    JLD2.@load "data/Africa_temp.jld2"
+    JLD2.@load "data/Africa_prec.jld2"
+    JLD2.@load "data/Africa_water.jld2"
+    JLD2.@load "data/Africa_solar.jld2"
 
     # Put together abiotic environment
+    bud = BudgetCollection2(africa_solar, africa_water)
+    active =  Array{Bool, 2}(.!isnan.(africa))
     ae1 = eraAE(africa_temp, africa_solar, active)
     ae2 = eraAE(africa_prec, africa_solar, active)
     hab = HabitatCollection2(ae1.habitat, ae2.habitat)
@@ -113,7 +78,7 @@ function runSim()
     rel = multiplicativeTR2(rel1, rel2)
     eco = Ecosystem(sppl, ae, rel)
 
-    file = "Africa_effort.tif"
+    file = "data/Africa_effort.tif"
     effort = Array(readfile(file, -25°, 50°, -35°, 40°))[:, end:-1:1]
     effort[isnan.(effort)] .= 1
     effort[.!active] .= 0.0
@@ -128,7 +93,11 @@ function runSim()
     return eco
 end
 
-
 output = runSim()
-JLD.save("1901.jld", "diver", EcoSISTEM.SavedLandscape(output.abundances))
+
+# Save output
+diver = EcoSISTEM.SavedLandscape(output.abundances)
+JLD2.@save "~/sdc/1901.jld2" diver
+
+# Check number of species left
 sum(mapslices(sum, output.abundances.matrix, dims =2)[:,1].>0)

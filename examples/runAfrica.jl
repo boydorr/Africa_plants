@@ -11,33 +11,35 @@ using EcoSISTEM
 using Distributions
 using AxisArrays
 using Random
+using DataFrames
 
-function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cacheFile::String)
+# Run full simulation forwards in time 1901-present
+function buildEco(start::EcoSISTEM.SavedLandscape, repeatYear::Bool, cacheFolder::String, cacheFile::String)
     JLD2.@load("data/Africa_traits.jld2")
 
     file = "data/Africa.tif"
     africa = readfile(file, -25.0°, 50.0°, -35.0°, 40.0°)[:, end:-1:1]
 
     # Set up grid
-    numSpecies = length(traits); grd = (100,100); area = 64e6km^2;
+    numSpecies = nrow(traits_dat); grd = (100,100); area = 64e6km^2;
     individuals = 0
 
     # Set up species requirements
-    solarreq = traits.ssr
+    solarreq = traits_dat.ssr
     req1 = SolarRequirement(solarreq .* m^2)
 
-    waterreq = traits.swvl1
+    waterreq = traits_dat.swvl1
     req2 = VolWaterRequirement(waterreq)
 
     req = ReqCollection2(req1, req2)
 
-    tmean = traits.tmin_mean
-    tsd = traits.tmin_sd
+    tmean = traits_dat.tmin_mean
+    tsd = traits_dat.tmin_sd
     tsd .+= (0.1 * maximum(tsd))
     temp_traits = GaussTrait(tmean, tsd)
 
-    pmean = traits.tp_mean
-    psd = traits.tp_sd
+    pmean = uconvert.(mm, traits_dat.tp_mean)
+    psd = uconvert.(mm, traits_dat.tp_sd)
     psd .+= (0.1 * maximum(psd))
     prec_traits = GaussTrait(pmean, psd)
 
@@ -57,10 +59,10 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     sppl = SpeciesList(numSpecies, trts, abun, req, movement, param, native)
 
     # Load CERA-20C/ERA climates
-    JLD2.@load "Africa_temp"
-    JLD2.@load "Africa_prec"
-    JLD2.@load "Africa_water"
-    JLD2.@load "Africa_solar"
+    JLD2.@load "data/Africa_temp.jld2"
+    JLD2.@load "data/Africa_prec.jld2"
+    JLD2.@load "data/Africa_water.jld2"
+    JLD2.@load "data/Africa_solar.jld2"
 
     # Put together abiotic environment
     bud = BudgetCollection2(africa_solar, africa_water)
@@ -75,11 +77,10 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     rel = multiplicativeTR2(rel1, rel2)
     eco = Ecosystem(sppl, ae, rel)
 
-    output = JLD.load(outputfile, "diver")
-    eco.abundances = GridLandscape(output, (numSpecies, grd[1], grd[2]))
+    eco.abundances = GridLandscape(start, (numSpecies, grd[1], grd[2]))
     divfuns = [norm_sub_alpha, sub_gamma]#, raw_sub_alpha, norm_sub_beta, raw_sub_beta, norm_sub_rho, raw_sub_rho, sub_gamma]
     q = [0.0]#, 1.0, 2.0, Inf]
-    simDict = Dict("times" => 118years - 1month, "burnin" => 0year, "interval" => 1year, "timestep" => 1month, "divfuns" => divfuns, "q" => q, "cacheInterval" => 10years, "fileName" => cacheFile)
+    simDict = Dict("times" => 118years - 1month, "burnin" => 0year, "interval" => 12months, "timestep" => 1month, "divfuns" => divfuns, "q" => q, "cacheInterval" => 10years, "fileName" => cacheFile)
     lensim = length(0month:simDict["interval"]:simDict["times"])
     diver = zeros(length(divfuns), size(eco.abundances.matrix, 2), lensim, length(q))
 
@@ -92,12 +93,10 @@ function buildEco(outputfile::String, repeatYear::Bool, cacheFolder::String, cac
     return diver
 end
 
+# Load burnin data to start from
+JLD2.@load "/home/claireh/sdc/1901.jld2"
 # Run on workstation
-for i in 1:10
-    output = buildEco("Africa_diversity_1.jld", false, "run/", "Africa_$i")
-    JLD.save("Africa_full_$i.jld", "diver", output)
+output = buildEco(diver, false, "run/", "Africa_test")
+# Save output
+JLD2.@save "Africa_test.jld2" output
 
-    output = buildEco("Africa_diversity_1.jld", true, "neutral/", "Africa_$i")
-    JLD.save("Africa_neutral_$i.jld", "diver", output)
-    print("$i \n")
-end
