@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
 #include("GIT/Chapter5/src/Chapter5.jl")
 include("../src/Chapter5.jl")
 using .Chapter5
