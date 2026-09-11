@@ -19,6 +19,8 @@ using MPI
 # commit this package depends on.
 include(joinpath(pkgdir(EcoSISTEM), "examples", "HPC", "memory.jl"))
 
+include("config.jl")
+include("area.jl")
 
 export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
        CANDIDATE_CELLSIZES,
