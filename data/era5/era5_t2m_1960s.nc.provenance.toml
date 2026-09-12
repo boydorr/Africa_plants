@@ -1,0 +1,16 @@
+client = "an earlier stdlib client of this script; CDSAPI.jl now"
+source = "Copernicus Climate Data Store, reanalysis-era5-single-levels-monthly-means"
+bytes = 17199260
+job = "3156bd67-1e5c-4ee3-bf21-febb1bc6a3b3"
+written = "2026-09-11T22:36:45.583"
+writer = "data/src/era5_download.jl"
+
+[request]
+month = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+product_type = ["monthly_averaged_reanalysis"]
+year = ["1960", "1961", "1962", "1963", "1964", "1965", "1966", "1967", "1968", "1969"]
+data_format = "netcdf"
+variable = ["2m_temperature"]
+download_format = "unarchived"
+time = ["00:00"]
+area = [40, -25, -36, 56]

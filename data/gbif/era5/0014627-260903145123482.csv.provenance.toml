@@ -1,0 +1,9 @@
+source = "GBIF occurrence download 0014627-260903145123482 (era5)"
+bytes = 9955163320
+doi = "10.15468/dl.n4a2sa"
+citation = "GBIF.org (2026) GBIF Occurrence Download https://doi.org/10.15468/dl.n4a2sa"
+filter = """{\n  \"type\": \"and\",\n  \"predicates\": [\n    {\"type\": \"equals\", \"key\": \"KINGDOM_KEY\", \"value\": \"6\"},\n    {\"type\": \"equals\", \"key\": \"HAS_COORDINATE\", \"value\": \"true\"},\n    {\"type\": \"equals\", \"key\": \"HAS_GEOSPATIAL_ISSUE\", \"value\": \"false\"},\n    {\"type\": \"equals\", \"key\": \"OCCURRENCE_STATUS\", \"value\": \"PRESENT\"},\n    {\"type\": \"greaterThanOrEquals\", \"key\": \"YEAR\", \"value\": \"1940\"},\n    {\"type\": \"within\", \"geometry\": \"POLYGON((-25.0 -36.0, 56.0 -36.0, 56.0 40.0, -25.0 40.0, -25.0 -36.0))\"}\n  ]\n}"""
+written = "2026-09-12T20:59:24.495"
+years = "1940-present"
+license = "http://creativecommons.org/licenses/by-nc/4.0/legalcode"
+writer = "data/src/gbif_download.jl"
