@@ -262,6 +262,9 @@ function in_africa(records::DataFrame)
     return inside
 end
 
+# A `(year, month)` pair as `YYYY-MM`.
+_monthlabel((y, m)) = string(y, "-", lpad(m, 2, "0"))
+
 # --- the script ----------------------------------------------------------------------
 
 function main(argv)
@@ -299,8 +302,8 @@ function main(argv)
     CSV.write(out, table)
     write_provenance(out, source = "record_climate.csv grouped by species",
                      species = nrow(table), min_records = MIN_RECORDS,
-                     era5_first_month = string(first_month),
-                     era5_last_month = string(last_month))
+                     era5_first_month = _monthlabel(first_month),
+                     era5_last_month = _monthlabel(last_month))
     println(nrow(table), " species with at least ", MIN_RECORDS,
             " records carrying climate -> ", out)
     return nothing

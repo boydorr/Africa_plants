@@ -42,39 +42,50 @@ const REQUESTS = (era5 = (from = 1940, to = nothing),
                   early = (from = 1806, to = 1939))
 
 """
+    filter_json(; from, to = nothing, box = AFRICA_BOX)
+
+Return the JSON of the download's filter alone: kingdom Plantae, coordinates present and
+without a flagged geospatial issue, status present, year at or after `from` (and at or before
+`to`, when given), within `box`. This is the scientific content of a request, and what the
+provenance records; the geometry is the box as a WKT polygon, counter-clockwise as GBIF
+requires.
+"""
+function filter_json(; from::Integer, to = nothing, box = AFRICA_BOX)
+    w, e, s, n = box.west, box.east, box.south, box.north
+    polygon = "POLYGON(($w $s, $e $s, $e $n, $w $n, $w $s))"
+    upper = isnothing(to) ? "" :
+            """{"type": "lessThanOrEquals", "key": "YEAR", "value": "$to"},\n      """
+    return """
+    {
+      "type": "and",
+      "predicates": [
+        {"type": "equals", "key": "KINGDOM_KEY", "value": "$PLANTAE"},
+        {"type": "equals", "key": "HAS_COORDINATE", "value": "true"},
+        {"type": "equals", "key": "HAS_GEOSPATIAL_ISSUE", "value": "false"},
+        {"type": "equals", "key": "OCCURRENCE_STATUS", "value": "PRESENT"},
+        {"type": "greaterThanOrEquals", "key": "YEAR", "value": "$from"},
+        $(upper){"type": "within", "geometry": "$polygon"}
+      ]
+    }"""
+end
+
+"""
     predicate_json(email; from, to = nothing, box = AFRICA_BOX, creator = ENV["GBIF_USER"])
 
-Return the JSON body of a download request: kingdom Plantae, coordinates present and without a
-flagged geospatial issue, status present, year at or after `from` (and at or before `to`, when
-given), within `box`, as the simple CSV format, with `email` notified on completion and
-`creator` the GBIF username.
-
-The geometry is the box as a WKT polygon, counter-clockwise as GBIF requires.
+Return the JSON body of a download request: [`filter_json`](@ref)'s filter, as the simple CSV
+format, with `email` notified on completion and `creator` the GBIF username. Sent to GBIF and
+never written to disk, since it names a person.
 """
 function predicate_json(email::AbstractString; from::Integer, to = nothing,
                         box = AFRICA_BOX,
                         creator::AbstractString = get(ENV, "GBIF_USER", ""))
-    w, e, s, n = box.west, box.east, box.south, box.north
-    polygon = "POLYGON(($w $s, $e $s, $e $n, $w $n, $w $s))"
-    upper = isnothing(to) ? "" :
-            """{"type": "lessThanOrEquals", "key": "YEAR", "value": "$to"},\n          """
     return """
     {
       "creator": "$creator",
       "notificationAddresses": ["$email"],
       "sendNotification": true,
       "format": "SIMPLE_CSV",
-      "predicate": {
-        "type": "and",
-        "predicates": [
-          {"type": "equals", "key": "KINGDOM_KEY", "value": "$PLANTAE"},
-          {"type": "equals", "key": "HAS_COORDINATE", "value": "true"},
-          {"type": "equals", "key": "HAS_GEOSPATIAL_ISSUE", "value": "false"},
-          {"type": "equals", "key": "OCCURRENCE_STATUS", "value": "PRESENT"},
-          {"type": "greaterThanOrEquals", "key": "YEAR", "value": "$from"},
-          $(upper){"type": "within", "geometry": "$polygon"}
-        ]
-      }
+      "predicate": $(filter_json(from = from, to = to, box = box))
     }
     """
 end
@@ -178,9 +189,7 @@ function provenance!(csv::AbstractString, key::AbstractString, s, cred, name,
                      citation = "GBIF.org (" * string(Dates.year(Dates.now())) *
                                 ") GBIF Occurrence Download https://doi.org/" *
                                 something(s.doi, "unknown"),
-                     predicate = predicate_json(cred.email, from = range.from,
-                                                to = range.to,
-                                                creator = cred.user))
+                     filter = filter_json(from = range.from, to = range.to))
     return nothing
 end
 

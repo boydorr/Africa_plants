@@ -36,17 +36,46 @@ Return whether `--force` was given: rebuild or refetch an output that already ex
 forced(argv) = "--force" in argv
 
 """
+    repopath(path)
+
+Return `path` relative to the repository root when it lies inside it, relative to the data
+directory when it lies inside that, and otherwise its basename: a name that means the same on
+every machine, for provenance records, which must carry no absolute path.
+"""
+function repopath(path::AbstractString)
+    full = abspath(path)
+    root = abspath(joinpath(@__DIR__, "..", ".."))
+    startswith(full, root) && return relpath(full, root)
+    data = datadir()
+    startswith(full, data) && return joinpath("data", relpath(full, data))
+    return basename(full)
+end
+
+# The script a provenance record is written by, named from the module `common.jl` was included
+# into, so every sidecar says which file produced it without any script having to say so.
+const SCRIPTS = Dict("ERA5Download" => "era5_download.jl",
+                     "Inventory" => "inventory.jl",
+                     "GBIFDownload" => "gbif_download.jl",
+                     "GBIFClean" => "gbif_clean.jl",
+                     "SpeciesTraits" => "species_traits.jl")
+function _writer()
+    return "data/src/" * get(SCRIPTS, string(nameof(@__MODULE__)),
+               string(nameof(@__MODULE__)))
+end
+
+"""
     write_provenance(path; source, fields...)
 
-Write `path.provenance.toml` beside `path`: who wrote it, the `source` it came from, when, its
-size, and any further `fields` (strings, numbers, vectors or dictionaries of those).
+Write `path.provenance.toml` beside `path`: the script that wrote it, the `source` it came
+from, when, its size, and any further `fields` (strings, numbers, vectors or dictionaries of
+those). Nothing here may name an absolute path or a person: pass paths through
+[`repopath`](@ref) and keep credentials and addresses out of `fields`.
 """
 function write_provenance(path::AbstractString; source::AbstractString,
                           fields...)
-    record = Dict{String, Any}("writer" => "Africa_plants data/src",
+    record = Dict{String, Any}("writer" => _writer(),
                                "source" => source,
-                               "written" => string(now(UTC)),
-                               "file" => basename(path))
+                               "written" => string(now(UTC)))
     isfile(path) && (record["bytes"] = filesize(path))
     for (k, v) in fields
         record[string(k)] = v

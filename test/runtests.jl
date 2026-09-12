@@ -132,6 +132,24 @@ end
     @test !isfile(done[1].path)
 end
 
+@testset "Data scripts: provenance" begin
+    root = abspath(joinpath(@__DIR__, ".."))
+    @test Inventory.repopath(joinpath(root, "data", "era5")) ==
+          joinpath("data", "era5")
+    @test Inventory.repopath(joinpath(root, "data", "src", "common.jl")) ==
+          joinpath("data", "src", "common.jl")
+    @test Inventory.repopath("/somewhere/else/file.nc") == "file.nc"
+    dir = mktempdir()
+    out = joinpath(dir, "thing.csv")
+    write(out, "a\n")
+    Inventory.write_provenance(out, source = "a test", n = 3)
+    rec = TOML.parsefile(Inventory.provenance_path(out))
+    @test rec["writer"] == "data/src/inventory.jl"
+    @test rec["source"] == "a test" && rec["n"] == 3 && rec["bytes"] == 2
+    @test !haskey(rec, "file")
+    @test !occursin(homedir(), read(Inventory.provenance_path(out), String))
+end
+
 @testset "Data scripts: inventory" begin
     dir = mktempdir()
     fake_era5(joinpath(dir, "era5_t2m_1940s.nc"), "t2m", "K", 1940, 24,
@@ -168,6 +186,15 @@ end
         @test occursin("\"lessThanOrEquals\", \"key\": \"YEAR\", \"value\": \"1939\"",
                        early)
     end
+    # The recorded filter carries the science and nothing about a person.
+    filt = GBIFDownload.filter_json(from = 1806, to = 1939)
+    @test occursin("\"lessThanOrEquals\", \"key\": \"YEAR\", \"value\": \"1939\"",
+                   filt)
+    @test !occursin("creator", filt) && !occursin("@", filt)
+    @test occursin(filt,
+                   GBIFDownload.predicate_json("x@y.org", from = 1806,
+                                               to = 1939,
+                                               creator = "someone"))
     @test GBIFDownload.REQUESTS.era5 == (from = 1940, to = nothing)
     @test GBIFDownload.REQUESTS.early == (from = 1806, to = 1939)
     s = GBIFDownload.parse_status("""{"key":"abc","doi":"10.15468/dl.xyz","status":"SUCCEEDED","downloadLink":"https://x/abc.zip"}""")

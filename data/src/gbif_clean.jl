@@ -194,7 +194,8 @@ function main(argv)
         decades = sort(collect(result.bydecade))
         CSV.write(replace(output, ".csv" => "_by_decade.csv"),
                   DataFrame(decade = first.(decades), records = last.(decades)))
-        write_provenance(output, source = "GBIF simple CSV " * input,
+        write_provenance(output,
+                         source = "GBIF simple CSV " * repopath(input),
                          records_seen = result.seen, records_kept = result.kept,
                          excluded_cells = length(excluded),
                          max_uncertainty_m = MAX_UNCERTAINTY_M,
