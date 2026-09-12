@@ -16,14 +16,17 @@ using Random
 using DataFrames
 
 # Run full simulation forwards in time 1901-present
-function buildEco(start::EcoSISTEM.SavedLandscape, repeatYear::Bool, cacheFolder::String, cacheFile::String)
+function buildEco(start::EcoSISTEM.SavedLandscape, repeatYear::Bool,
+                  cacheFolder::String, cacheFile::String)
     JLD2.@load("data/Africa_traits.jld2")
 
     file = "data/Africa.tif"
     africa = readfile(file, -25.0°, 50.0°, -35.0°, 40.0°)[:, end:-1:1]
 
     # Set up grid
-    numSpecies = nrow(traits_dat); grd = (100,100); area = 64e6km^2;
+    numSpecies = nrow(traits_dat)
+    grd = (100, 100)
+    area = 64e6km^2
     individuals = 0
 
     # Set up species requirements
@@ -52,9 +55,10 @@ function buildEco(start::EcoSISTEM.SavedLandscape, repeatYear::Bool, cacheFolder
     abun = rand(Multinomial(individuals, numSpecies))
     trts = TraitCollection2(temp_traits, prec_traits)
 
-    death_rates = abs.(rand(Normal(0.15, 0.001), numSpecies)) ./year
+    death_rates = abs.(rand(Normal(0.15, 0.001), numSpecies)) ./ year
     birth_rates = death_rates
-    param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates, 1.0, 1e-3, 1.0)
+    param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates,
+                                                    1.0, 1e-3, 1.0)
 
     native = fill(true, numSpecies)
 
@@ -68,11 +72,12 @@ function buildEco(start::EcoSISTEM.SavedLandscape, repeatYear::Bool, cacheFolder
 
     # Put together abiotic environment
     bud = BudgetCollection2(africa_solar, africa_water)
-    active =  Array{Bool, 2}(.!isnan.(africa))
+    active = Array{Bool, 2}(.!isnan.(africa))
     ae1 = eraAE(africa_temp, africa_solar, active)
     ae2 = eraAE(africa_prec, africa_solar, active)
     hab = HabitatCollection2(ae1.habitat, ae2.habitat)
-    ae = GridAbioticEnv{typeof(hab), typeof(bud)}(hab, ae1.active, bud, ae1.names)
+    ae = GridAbioticEnv{typeof(hab), typeof(bud)}(hab, ae1.active, bud,
+                                                  ae1.names)
 
     rel1 = Gauss{eltype(ae.habitat.h1)}()
     rel2 = Gauss{eltype(ae.habitat.h2)}()
@@ -82,9 +87,13 @@ function buildEco(start::EcoSISTEM.SavedLandscape, repeatYear::Bool, cacheFolder
     eco.abundances = GridLandscape(start, (numSpecies, grd[1], grd[2]))
     divfuns = [norm_sub_alpha, sub_gamma]#, raw_sub_alpha, norm_sub_beta, raw_sub_beta, norm_sub_rho, raw_sub_rho, sub_gamma]
     q = [0.0]#, 1.0, 2.0, Inf]
-    simDict = Dict("times" => 118years - 1month, "burnin" => 0year, "interval" => 12months, "timestep" => 1month, "divfuns" => divfuns, "q" => q, "cacheInterval" => 10years, "fileName" => cacheFile)
+    simDict = Dict("times" => 118years - 1month, "burnin" => 0year,
+                   "interval" => 12months, "timestep" => 1month,
+                   "divfuns" => divfuns, "q" => q, "cacheInterval" => 10years,
+                   "fileName" => cacheFile)
     lensim = length(0month:simDict["interval"]:simDict["times"])
-    diver = zeros(length(divfuns), size(eco.abundances.matrix, 2), lensim, length(q))
+    diver = zeros(length(divfuns), size(eco.abundances.matrix, 2), lensim,
+                  length(q))
 
     #runburnin!(eco, simDict["burnin"], simDict["timestep"])
     if repeatYear
@@ -101,4 +110,3 @@ JLD2.@load "/home/claireh/sdc/1901.jld2"
 output = buildEco(diver, false, "run/", "Africa_test")
 # Save output
 JLD2.@save "Africa_test.jld2" output
-

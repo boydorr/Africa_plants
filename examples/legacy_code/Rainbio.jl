@@ -13,9 +13,10 @@ refval = extractvalues(y .* °, x .* °, ref)
 rainbio = pushcol(rainbio, :refval, refval)
 numspp = length(unique(JuliaDB.select(rainbio, :species)))
 
-function startingArray(rainbio::JuliaDB.IndexedTable, numspecies::Int64, xmin = -25°, xmax = 50°, ymin = -35°, ymax = 40°)
+function startingArray(rainbio::JuliaDB.IndexedTable, numspecies::Int64,
+                       xmin = -25°, xmax = 50°, ymin = -35°, ymax = 40°)
     ref = create_reference(0.75)
-    newref = ref.array[xmin.. xmax, ymin.. ymax]
+    newref = ref.array[xmin .. xmax, ymin .. ymax]
     rainbio = filter(g->g.refval in newref, rainbio)
     refdict = Dict(zip(newref[1:end], 1:length(newref)))
     fillarray = Array{Int64, 2}(undef, numspecies, length(newref))
@@ -26,12 +27,12 @@ function startingArray(rainbio::JuliaDB.IndexedTable, numspecies::Int64, xmin = 
     refs = [refdict[y] for y in collect(JuliaDB.select(grouped_tab, :refval))]
     counts = collect(JuliaDB.select(grouped_tab, :count))
     map(1:length(counts)) do i
-        fillarray[sppnames[i], refs[i]] = counts[i]
+        return fillarray[sppnames[i], refs[i]] = counts[i]
     end
     return fillarray
 end
 africa = readfile("data/Africa.tif", -25°, 50°, -35°, 40°)[:, end:-1:1]
-active =  Array{Bool, 2}(.!isnan.(africa))
+active = Array{Bool, 2}(.!isnan.(africa))
 start = startingArray(rainbio, numspp)
 eco = Metacommunity(start)
 diver = norm_sub_alpha(eco, 0)[:diversity]
@@ -39,7 +40,11 @@ diver = reshape(diver, 100, 100)
 diver[isnan.(diver)] .= 0
 diver[.!(active)] .= NaN
 plotlyjs()
-heatmap(-25:0.75:49.25, -35:0.75:39.25, transpose(diver), background_color = :lightblue, background_color_outside=:white, grid = false, color = cgrad(:algae_r, scale = :exp), aspect_ratio = 1, colorbar_title = "SR", size = (1200, 800), layout = (@layout [a b]), clim = (0, 2000))
+heatmap(-25:0.75:49.25, -35:0.75:39.25, transpose(diver),
+        background_color = :lightblue, background_color_outside = :white,
+        grid = false, color = cgrad(:algae_r, scale = :exp), aspect_ratio = 1,
+        colorbar_title = "SR", size = (1200, 800), layout = (@layout [a b]),
+        clim = (0, 2000))
 
 function catmean(filename::String, num::Int64)
     diver = JLD.load(filename*"1.jld", "diver")
@@ -55,5 +60,9 @@ diverA = catmean("data/Africa_full_", 10)
 mydiver = diverA[1, :, :, 118, 1]
 mydiver[isnan.(mydiver)] .= 0
 mydiver[.!(active)] .= NaN
-heatmap!(-25:0.75:49.25, -35:0.75:39.25, transpose(mydiver), background_color = :lightblue, background_color_outside=:white, grid = false, color = cgrad(:algae_r, scale = :exp), aspect_ratio = 1, colorbar_title = "SR", size = (1200, 800), layout = (@layout [a b]), clim = (0, 2000), subplot = 2)
+heatmap!(-25:0.75:49.25, -35:0.75:39.25, transpose(mydiver),
+         background_color = :lightblue, background_color_outside = :white,
+         grid = false, color = cgrad(:algae_r, scale = :exp), aspect_ratio = 1,
+         colorbar_title = "SR", size = (1200, 800), layout = (@layout [a b]),
+         clim = (0, 2000), subplot = 2)
 Plots.pdf("plots/Rainbio.pdf")

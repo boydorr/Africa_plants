@@ -24,13 +24,15 @@ function runSim()
     africa = readfile(file, -25°, 50°, -35°, 40°)[:, end:-1:1]
 
     # Set up grid
-    numSpecies = length(traits); grd = (100,100); area = 64e6km^2;
+    numSpecies = length(traits)
+    grd = (100, 100)
+    area = 64e6km^2
     individuals = 0
 
     # Set up species requirements
     sizes = abs.(rand(Normal(0.01, 0.01), numSpecies))
     solarreq = collect(select(traits, :ssr))
-    req1 = SolarRequirement(solarreq .* sizes  .* m^2)
+    req1 = SolarRequirement(solarreq .* sizes .* m^2)
 
     waterreq = collect(select(traits, :swvl1))
     req2 = VolWaterRequirement(waterreq .* sizes)
@@ -54,8 +56,9 @@ function runSim()
     abun = rand(Multinomial(individuals, numSpecies))
     trts = TraitCollection2(temp_traits, prec_traits)
 
-    birth_rates = death_rates = fill(0.15, numSpecies) ./year
-    param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates, 1.0, 1e-3, 1.0)
+    birth_rates = death_rates = fill(0.15, numSpecies) ./ year
+    param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates,
+                                                    1.0, 1e-3, 1.0)
 
     native = fill(true, numSpecies)
 
@@ -69,11 +72,12 @@ function runSim()
 
     # Put together abiotic environment
     bud = BudgetCollection2(africa_solar, africa_water)
-    active =  Array{Bool, 2}(.!isnan.(africa))
+    active = Array{Bool, 2}(.!isnan.(africa))
     ae1 = eraAE(africa_temp, africa_solar, active)
     ae2 = eraAE(africa_prec, africa_solar, active)
     hab = HabitatCollection2(ae1.habitat, ae2.habitat)
-    ae = GridAbioticEnv{typeof(hab), typeof(bud)}(hab, ae1.active, bud, ae1.names)
+    ae = GridAbioticEnv{typeof(hab), typeof(bud)}(hab, ae1.active, bud,
+                                                  ae1.names)
 
     rel1 = Gauss{eltype(ae.habitat.h1)}()
     rel2 = Gauss{eltype(ae.habitat.h2)}()
@@ -89,8 +93,10 @@ function runSim()
 
     eco.abundances.matrix .+= round.(Int64, start)
     eco.abenv.budget.b2.matrix .+= 1e-9m^3
-    fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1), size(eco.abundances.matrix, 2))
-    reverseBurnin!(eco, 118years - 1month, 1month, 10years, "../../sdb/Chapter5/burnin/", gbif, effort, fillarray)
+    fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1),
+                                size(eco.abundances.matrix, 2))
+    reverseBurnin!(eco, 118years - 1month, 1month, 10years,
+                   "../../sdb/Chapter5/burnin/", gbif, effort, fillarray)
     runburnin!(eco, 10years, 1month)
     return eco
 end
@@ -102,4 +108,4 @@ diver = EcoSISTEM.SavedLandscape(output.abundances)
 JLD2.@save "~/sdc/1901.jld2" diver
 
 # Check number of species left
-sum(mapslices(sum, output.abundances.matrix, dims =2)[:,1].>0)
+sum(mapslices(sum, output.abundances.matrix, dims = 2)[:, 1] .> 0)
