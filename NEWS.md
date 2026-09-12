@@ -9,5 +9,8 @@
       v1.11 and/or are no longer part of EcoSISTEM.
   - Added
     - Simple testing and workflow.
+    - Data scripts under `data/src/` that fetch ERA5 monthly means from the Climate Data
+      Store and a GBIF occurrence download for Africa, inventory the files, clean the records
+      and derive the per-species climate table the run is parameterised from.
 - v0.1.0
   - The code behind case study 2 of the EcoSISTEM arXiv paper, on EcoSISTEM 0.1.

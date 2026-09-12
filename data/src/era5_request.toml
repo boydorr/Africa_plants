@@ -1,0 +1,43 @@
+# The ERA5 request the Africa runs are built on: monthly means on single levels, four variables,
+# the Africa box with a margin, one file per variable per decade, netCDF. `era5_download.jl`
+# reads this file; it is also the fixture EcoSISTEM's download code is tested against.
+#
+# Area is [north, west, south, east] in degrees, the order the CDS expects. The box covers the
+# continent with Madagascar and a margin of about one degree.
+
+dataset = "reanalysis-era5-single-levels-monthly-means"
+
+[request]
+product_type = ["monthly_averaged_reanalysis"]
+month = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+time = ["00:00"]
+area = [40, -25, -36, 56]
+data_format = "netcdf"
+download_format = "unarchived"
+
+# One entry per variable: the CDS name, the short name the file's variable carries (and the
+# filename uses), and the unit the CDS delivers.
+[[variables]]
+cds = "2m_temperature"
+short = "t2m"
+unit = "K"
+
+[[variables]]
+cds = "total_precipitation"
+short = "tp"
+unit = "m (monthly mean of the daily accumulation)"
+
+[[variables]]
+cds = "volumetric_soil_water_layer_1"
+short = "swvl1"
+unit = "m^3 m^-3"
+
+[[variables]]
+cds = "surface_net_solar_radiation"
+short = "ssr"
+unit = "J m^-2 (monthly mean of the daily accumulation)"
+
+# Decade files: the first year of each. The last decade runs to the latest complete year, which
+# the script works out from today's date.
+[decades]
+first = 1940
