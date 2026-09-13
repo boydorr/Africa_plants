@@ -1,6 +1,7 @@
 # The large downloads and the tables derived from them stay out of git; the scripts that fetch
 # them, the provenance sidecars, the request keys and the small summary tables are tracked.
 era5/*.nc
+twentycr/*/*.nc
 gbif/*/*.zip
 gbif/*/*.csv
 *.part

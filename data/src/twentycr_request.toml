@@ -1,0 +1,48 @@
+# The NOAA-CIRES-DOE 20th Century Reanalysis version 3 (20CRv3) monthly means the extension
+# before 1940 is built on, served by NOAA PSL over plain HTTPS with no account. Global files,
+# one per variable, each spanning January 1806 to December 2015 (2,520 months). PSL publishes
+# them under two directory names, `<variable>SI-MO` and `<variable>SI`, and the files are byte
+# for byte the same, so only `SI-MO` is fetched. The quality boundaries lie inside each file:
+# 1806-1835 is the sparse-input extension, 1836-1980 the SI stream and 1981-2015 the MO stream.
+# `twentycr_download.jl` reads this file.
+#
+# The variables mirror the ERA5 set: 2 m air temperature; precipitation as a rate (PSL also
+# offers the accumulation `apcp`, which the rate makes unnecessary); net shortwave at the
+# surface as downward minus upward, since PSL publishes the two components rather than the net;
+# and volumetric soil moisture, whose file carries the soil layers as a dimension (the ERA5
+# layer 1 counterpart is the top layer).
+
+# PSL's plain download host, not its THREDDS `fileServer`, which cuts a long transfer off after
+# a few megabytes; this one streams whole files and honours byte ranges, so a transfer resumes.
+base = "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies"
+subsets = ["SI-MO"]
+
+[[variables]]
+short = "air2m"
+directory = "2m"
+file = "air.2m.mon.mean.nc"
+role = "2 m air temperature (K)"
+
+[[variables]]
+short = "prate"
+directory = "sfc"
+file = "prate.mon.mean.nc"
+role = "precipitation rate (kg m^-2 s^-1)"
+
+[[variables]]
+short = "dswrf"
+directory = "sfcFlx"
+file = "dswrf.sfc.mon.mean.nc"
+role = "downward shortwave radiation flux at the surface (W m^-2)"
+
+[[variables]]
+short = "uswrf"
+directory = "sfcFlx"
+file = "uswrf.sfc.mon.mean.nc"
+role = "upward shortwave radiation flux at the surface (W m^-2)"
+
+[[variables]]
+short = "soilw"
+directory = "subsfc"
+file = "soilw.mon.mean.nc"
+role = "volumetric soil moisture by layer (fraction)"

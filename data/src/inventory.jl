@@ -80,7 +80,8 @@ function inventory_file(path::AbstractString)
             name in axes && continue
             var = ds[name]
             # Coordinate-like helpers (bounds, numbers) carry no data of their own.
-            ndims(var) < 2 && continue
+            (ndims(var) < 2 || endswith(name, "_bnds") ||
+             endswith(name, "_bounds")) && continue
             push!(rows,
                   (file = basename(path), variable = name,
                    dims = join(NCDatasets.dimnames(var), ","),

@@ -11,6 +11,7 @@ the pure functions, which `test/runtests.jl` exercises on fabricated inputs.
 | step | script | needs | writes |
 | --- | --- | --- | --- |
 | 1 | `era5_download.jl` | a CDS account: `~/.cdsapirc`, read by CDSAPI.jl | `era5/era5_<var>_<decade>.nc`, one variable per decade file |
+| 1b | `twentycr_download.jl` | nothing: NOAA PSL serves 20CRv3 over plain HTTPS | `twentycr/SI-MO/`, five global monthly files spanning 1806 to 2015 (2 m temperature, precipitation rate, downward and upward shortwave, soil moisture by layer), for the extension before 1940 |
 | 2 | `inventory.jl` | the netCDF files | `inventory.csv`: every file's variables, unit strings, time axis, lattice |
 | 3 | `gbif_download.jl` | a GBIF account: `GBIF_USER`, `GBIF_PWD`, `GBIF_EMAIL` in the environment, or `user`, `pwd`, `email` in `~/.gbifrc` | two downloads, `gbif/era5/<key>.csv` (1940 onward, the ERA5 years) and `gbif/early/<key>.csv` (1806-1939, the years only 20CRv3 reaches), each with its DOI in its provenance |
 | 4 | `gbif_clean.jl` | the GBIF CSVs | `records.csv` from the `era5` download and `records_early.csv` from `early`: one row per usable record, cleaned |
@@ -18,6 +19,7 @@ the pure functions, which `test/runtests.jl` exercises on fabricated inputs.
 
 ```sh
 julia --project data/src/era5_download.jl    # hours, queued at the CDS; resumable
+julia --project data/src/twentycr_download.jl # about 4 GB, no credentials; extension only
 julia --project data/src/inventory.jl
 julia --project data/src/gbif_download.jl --request-only   # submit both; GBIF emails when ready
 julia --project data/src/gbif_download.jl                  # later: wait if needed, then fetch
@@ -39,6 +41,9 @@ cannot find its credentials says which are missing and stops before touching the
   m/day as the monthly mean of the daily accumulation), `swvl1` (volumetric soil water, layer 1,
   m^3/m^3), `ssr` (surface net solar radiation, J/m^2/day). The request is
   `era5_request.toml`, which is also the fixture EcoSISTEM's download code is built against.
+- **`twentycr/SI-MO/`**: 20CRv3 monthly means from NOAA PSL, global, PSL's own file names,
+  each file 1806-01 to 2015-12. PSL's `SI` directory serves byte-identical files, so it is not
+  fetched; the quality boundaries (1836 and 1981) lie inside each file. Not cut to Africa here.
 - **`inventory.csv`**: what the files actually say, recorded before anything trusts them:
   variable names, `units` attributes verbatim, time axis calendar, first and last dates,
   spacing and whether it is even, latitude and longitude ranges and spacing and whether the

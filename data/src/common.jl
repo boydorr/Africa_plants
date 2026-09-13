@@ -54,6 +54,7 @@ end
 # The script a provenance record is written by, named from the module `common.jl` was included
 # into, so every sidecar says which file produced it without any script having to say so.
 const SCRIPTS = Dict("ERA5Download" => "era5_download.jl",
+                     "TwentyCRDownload" => "twentycr_download.jl",
                      "Inventory" => "inventory.jl",
                      "GBIFDownload" => "gbif_download.jl",
                      "GBIFClean" => "gbif_clean.jl",

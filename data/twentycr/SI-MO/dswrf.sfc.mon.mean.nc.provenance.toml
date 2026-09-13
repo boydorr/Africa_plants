@@ -1,0 +1,9 @@
+source = "NOAA PSL, 20th Century Reanalysis V3 monthly means"
+bytes = 347127113
+subset = "SI-MO"
+url = "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies/sfcFlxSI-MO/dswrf.sfc.mon.mean.nc"
+variable = "dswrf"
+citation = "Slivinski et al. (2019) Q. J. R. Meteorol. Soc. 145:2876-2908, doi:10.1002/qj.3598; data from NOAA PSL, https://psl.noaa.gov/data/gridded/data.20thC_ReanV3.html"
+written = "2026-09-13T07:17:03.812"
+role = "downward shortwave radiation flux at the surface (W m^-2)"
+writer = "data/src/twentycr_download.jl"

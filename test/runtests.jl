@@ -40,6 +40,7 @@ end
 
 const DATASRC = joinpath(@__DIR__, "..", "data", "src")
 include(joinpath(DATASRC, "era5_download.jl"))
+include(joinpath(DATASRC, "twentycr_download.jl"))
 include(joinpath(DATASRC, "inventory.jl"))
 include(joinpath(DATASRC, "gbif_download.jl"))
 include(joinpath(DATASRC, "gbif_clean.jl"))
@@ -130,6 +131,34 @@ end
     rm(done[1].path)
     @test length(ERA5Download.fetch(ERA5Download.SPEC, dir, dryrun = true)) == 1
     @test !isfile(done[1].path)
+end
+
+@testset "Data scripts: 20CRv3 request" begin
+    spec = TOML.parsefile(TwentyCRDownload.SPEC)
+    @test spec["subsets"] == ["SI-MO"]
+    @test [v["short"] for v in spec["variables"]] ==
+          ["air2m", "prate", "dswrf", "uswrf", "soilw"]
+    dir = mktempdir()
+    todo = TwentyCRDownload.jobs(spec, dir)
+    @test length(todo) == 5
+    @test todo[1].url ==
+          "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies/2mSI-MO/air.2m.mon.mean.nc"
+    @test todo[1].path == joinpath(dir, "SI-MO", "air.2m.mon.mean.nc")
+    @test todo[end].url ==
+          "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies/subsfcSI-MO/soilw.mon.mean.nc"
+    @test length(TwentyCRDownload.jobs(spec, dir, subsets = ["SI-MO"])) == 5
+    # The fetch loop without the network.
+    urls = String[]
+    fake = (url, path) -> (push!(urls, url); write(path, "x"))
+    done = TwentyCRDownload.fetch(TwentyCRDownload.SPEC, dir,
+                                  subsets = ["SI-MO"], download = fake)
+    @test length(done) == 5 == length(urls)
+    @test all(isfile(j.path) for j in done)
+    @test all(isfile(TwentyCRDownload.provenance_path(j.path)) for j in done)
+    rec = TOML.parsefile(TwentyCRDownload.provenance_path(done[1].path))
+    @test rec["url"] == urls[1] && rec["subset"] == "SI-MO"
+    @test isempty(TwentyCRDownload.fetch(TwentyCRDownload.SPEC, dir,
+                                         subsets = ["SI-MO"], download = fake))
 end
 
 @testset "Data scripts: provenance" begin

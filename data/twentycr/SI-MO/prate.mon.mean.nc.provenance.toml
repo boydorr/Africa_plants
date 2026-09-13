@@ -1,0 +1,9 @@
+source = "NOAA PSL, 20th Century Reanalysis V3 monthly means"
+bytes = 493308648
+subset = "SI-MO"
+url = "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies/sfcSI-MO/prate.mon.mean.nc"
+variable = "prate"
+citation = "Slivinski et al. (2019) Q. J. R. Meteorol. Soc. 145:2876-2908, doi:10.1002/qj.3598; data from NOAA PSL, https://psl.noaa.gov/data/gridded/data.20thC_ReanV3.html"
+written = "2026-09-13T07:15:28.508"
+role = "precipitation rate (kg m^-2 s^-1)"
+writer = "data/src/twentycr_download.jl"
