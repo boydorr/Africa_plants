@@ -44,6 +44,8 @@ include(joinpath(DATASRC, "twentycr_download.jl"))
 include(joinpath(DATASRC, "inventory.jl"))
 include(joinpath(DATASRC, "gbif_download.jl"))
 include(joinpath(DATASRC, "gbif_clean.jl"))
+include(joinpath(DATASRC, "centroids.jl"))
+include(joinpath(DATASRC, "gardens.jl"))
 include(joinpath(DATASRC, "species_traits.jl"))
 
 using NCDatasets
@@ -91,74 +93,45 @@ end
 
 @testset "Data scripts: ERA5 request" begin
     @test ERA5Download.last_complete_year(Dates.Date(2026, 9, 11)) == 2025
-    @test ERA5Download.decades(1940, 1965) ==
-          [(1940, 1949), (1950, 1959), (1960, 1965)]
-    @test ERA5Download.decades(1940, 1940) == [(1940, 1940)]
-    spec = TOML.parsefile(ERA5Download.SPEC)
-    @test spec["dataset"] == "reanalysis-era5-single-levels-monthly-means"
-    @test [v["short"] for v in spec["variables"]] ==
-          ["t2m", "tp", "swvl1", "ssr"]
-    request = ERA5Download.build_request(spec, spec["variables"][2], 1950:1959)
-    @test request["variable"] == ["total_precipitation"]
-    @test request["year"] == string.(1950:1959)
-    @test request["product_type"] == ["monthly_averaged_reanalysis"]
-    @test request["area"] == [40, -25, -36, 56]
-    @test request["data_format"] == "netcdf"
-    @test length(request["month"]) == 12
+    @test ERA5Download.cdsarea() == (40, -25, -36, 56)
     dir = mktempdir()
-    todo = ERA5Download.jobs(spec, dir, 1955)
-    @test length(todo) == 4 * 2
-    @test basename(todo[1].path) == "era5_t2m_1940s.nc"
-    @test todo[2].years == 1950:1955
-    touch(todo[1].path)
-    @test length(ERA5Download.jobs(spec, dir, 1955)) == 7
-    @test length(ERA5Download.jobs(spec, dir, 1955, force = true)) == 8
-    # The fetch loop without the network: a stand-in `retrieve` that writes the file.
-    calls = String[]
-    fake = (name, request, path) -> (
-                                     push!(calls,
-                                           name * " " * request["variable"][1]);
-                                     write(path, "x"))
-    expected = length(ERA5Download.jobs(spec, dir,
-                                        ERA5Download.last_complete_year()))
-    done = ERA5Download.fetch(ERA5Download.SPEC, dir, retrieve = fake)
-    @test length(done) == expected == length(calls)
-    @test all(startswith("reanalysis-era5-single-levels-monthly-means "), calls)
-    @test all(isfile(j.path) for j in done)
-    @test all(isfile(ERA5Download.provenance_path(j.path)) for j in done)
-    # A second pass finds nothing to do, and a dry run lists without fetching.
-    @test isempty(ERA5Download.fetch(ERA5Download.SPEC, dir, retrieve = fake))
-    rm(done[1].path)
-    @test length(ERA5Download.fetch(ERA5Download.SPEC, dir, dryrun = true)) == 1
-    @test !isfile(done[1].path)
+    requests = ERA5Download.requests(dir, lastyear = 2025)
+    @test length(requests) == length(ERA5Download.CODES) == 4
+    @test [basename(r.path) for r in requests[1]] ==
+          [["era5_t2m_$(d)s.nc" for d in 1940:10:2010]; "era5_t2m_2020-2025.nc"]
+    tp = requests[2][2]
+    @test tp.dataset == "reanalysis-era5-single-levels-monthly-means"
+    @test tp.request["variable"] == ["total_precipitation"]
+    @test tp.request["year"] == string.(1950:1959)
+    @test tp.request["area"] == [40, -25, -36, 56]
+    @test tp.request["product_type"] == ["monthly_averaged_reanalysis"]
+    @test length(tp.request["month"]) == 12
+    # A dry run reports presence without the network, since a CDS request states no size.
+    touch(requests[1][1].path)
+    specs = [SourceSpec(ERA, code, files = files)
+             for (code, files) in zip(ERA5Download.CODES, requests)]
+    dry = EcoSISTEM.fetchfiles(specs, dryrun = true)
+    @test length(dry) == 4 * 9
+    @test count(e -> e.present, dry) == 1
 end
 
 @testset "Data scripts: 20CRv3 request" begin
-    spec = TOML.parsefile(TwentyCRDownload.SPEC)
-    @test spec["subsets"] == ["SI-MO"]
-    @test [v["short"] for v in spec["variables"]] ==
-          ["air2m", "prate", "dswrf", "uswrf", "soilw"]
     dir = mktempdir()
-    todo = TwentyCRDownload.jobs(spec, dir)
-    @test length(todo) == 5
-    @test todo[1].url ==
+    assets = TwentyCRDownload.assets(dir)
+    @test length(assets) == 5
+    @test assets[1].url ==
           "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies/2mSI-MO/air.2m.mon.mean.nc"
-    @test todo[1].path == joinpath(dir, "SI-MO", "air.2m.mon.mean.nc")
-    @test todo[end].url ==
+    @test assets[1].path == joinpath(dir, "SI-MO", "air.2m.mon.mean.nc")
+    @test assets[end].url ==
           "https://downloads.psl.noaa.gov/Datasets/20thC_ReanV3/Monthlies/subsfcSI-MO/soilw.mon.mean.nc"
-    @test length(TwentyCRDownload.jobs(spec, dir, subsets = ["SI-MO"])) == 5
-    # The fetch loop without the network.
-    urls = String[]
-    fake = (url, path) -> (push!(urls, url); write(path, "x"))
-    done = TwentyCRDownload.fetch(TwentyCRDownload.SPEC, dir,
-                                  subsets = ["SI-MO"], download = fake)
-    @test length(done) == 5 == length(urls)
-    @test all(isfile(j.path) for j in done)
-    @test all(isfile(TwentyCRDownload.provenance_path(j.path)) for j in done)
-    rec = TOML.parsefile(TwentyCRDownload.provenance_path(done[1].path))
-    @test rec["url"] == urls[1] && rec["subset"] == "SI-MO"
-    @test isempty(TwentyCRDownload.fetch(TwentyCRDownload.SPEC, dir,
-                                         subsets = ["SI-MO"], download = fake))
+    # A file already present is recorded on first use and fetched from nowhere.
+    mkpath(dirname(assets[1].path))
+    write(assets[1].path, "not a netCDF file, and never opened")
+    @test EcoSISTEM.assetpath(assets[1]) == assets[1].path
+    record = provenance(assets[1].path)
+    @test record.url == assets[1].url
+    @test record.dataset == "TwentyCR" && record.code == "air"
+    @test isnothing(record.fetched)
 end
 
 @testset "Data scripts: provenance" begin
@@ -234,34 +207,110 @@ end
     @test GBIFDownload.parse_status("""{"license":"http://creativecommons.org/licenses/by-nc/4.0/legalcode"}""").license ==
           "http://creativecommons.org/licenses/by-nc/4.0/legalcode"
 
-    @test GBIFClean.cellkey(0.0, 0.0) == (4500, 9000)
-    @test GBIFClean.cellkey(0.01, 0.01) == GBIFClean.cellkey(0.0, 0.0)
-    @test GBIFClean.cellkey(0.021, 0.0) != GBIFClean.cellkey(0.0, 0.0)
+    # Whole, half and quarter degrees are lattice points; quarter-degree square centres are not.
+    @test GBIFClean.on_lattice(12.5, 30.0)
+    @test GBIFClean.on_lattice(-12.25, 30.75)
+    @test !GBIFClean.on_lattice(-33.875, 18.875)
+    @test !GBIFClean.on_lattice(12.3, 30.0)
+    @test !GBIFClean.on_lattice(-1.5, 36.8)
+
+    places = GBIFClean.PlaceIndex([0.0, 0.0499, 39.0], [0.0, 0.0499, 10.0])
+    @test length(places) == 3
+    @test GBIFClean.near(places, 0.0, 0.005)             # 0.56 km
+    @test !GBIFClean.near(places, 0.0, 0.02)             # 2.2 km
+    @test GBIFClean.near(places, 0.0501, 0.0501)         # across a bucket edge
+    @test GBIFClean.near(places, 39.0, 10.011)           # 0.95 km, longitude shrunk
+    @test !GBIFClean.near(places, 39.0, 10.013)          # 1.12 km
+    @test !GBIFClean.near(GBIFClean.PlaceIndex(Float64[], Float64[]), 0.0, 0.0)
+    @test sprint(show, places) == "PlaceIndex(3 places, 1.0 km)"
+
+    catalogue = joinpath(mktempdir(), "centroids.tsv")
+    write(catalogue,
+          join([
+                   "iso3\tiso2\tgadm1\tgbif_name\ttype\tarea_sqkm\tdecimal_longitude\tdecimal_latitude\tsource_locality_name\tsource_reference\tsource",
+                   "TUN\tTN\t\tTunisia\tPCLI\t163610\t9.5\t34.1\tTunisia\thttps://x\tGeoNames",
+                   "NAM\tNA\t\tNamibia\tPCLI\t825615\t17.2\t-22.1\tNamibia\thttps://x\tTGN",
+                   "KEN\tKE\tKEN.1_1\tBaringo\tADM1\t11015\t35.9\t0.6\tBaringo\thttps://x\tGeoNames"
+               ],
+               "\n") * "\n")
+    institutions = DataFrame(name = ["Kirstenbosch National Botanical Garden",
+                                 "Karoo National Botanical Garden",
+                                 "University of Pretoria, Botany Department",
+                                 "Jardin Botanique de Kisantu", "Lost garden"],
+                             type = ["Botanic_garden", "Herbarium", "Herbarium",
+                                 missing, "Botanic_garden"],
+                             decimalLatitude = [
+                                 -33.9875,
+                                 -33.6,
+                                 -25.75,
+                                 -5.13,
+                                 missing
+                             ],
+                             decimalLongitude = [
+                                 18.43,
+                                 19.46,
+                                 28.23,
+                                 15.1,
+                                 missing
+                             ],
+                             country = ["ZAF", "ZAF", "ZAF", "COD", missing],
+                             source = ["BCGI", "indexherbariorum",
+                                 "indexherbariorum",
+                                 "indexherbariorum", "BCGI"])
+    gardens = Gardens.botanic_gardens(institutions)
+    # Typed as a garden, or named as one; a botany department is neither, and a garden with no
+    # coordinates cannot exclude anything.
+    @test gardens.name == ["Kirstenbosch National Botanical Garden",
+        "Karoo National Botanical Garden", "Jardin Botanique de Kisantu"]
+    @test gardens.type == ["Botanic_garden", "Herbarium", ""]
+    @test names(gardens) ==
+          ["name", "type", "country", "source", "latitude", "longitude"]
+    cc = Centroids.country_centroids(catalogue)
+    @test cc.iso2 == ["TN", "NA"]
+    @test cc.latitude == [34.1, -22.1] && cc.longitude == [9.5, 17.2]
+
+    @test GBIFClean.greenhouse("Kew, in the Temperate House glasshouse")
+    @test !GBIFClean.greenhouse(missing)
+    @test GBIFClean.garden_named("Hort. Kirstenbosch. Rock Garden.")
+    @test GBIFClean.garden_named("PRETORIA; BOTANIESE TUIN; KWEKERY")
+    @test !GBIFClean.garden_named("Libreville, Arboretum de Sibang.")
+    @test !GBIFClean.garden_named("Forest relicts and cultivated areas, Mundemba town.")
+    @test !GBIFClean.garden_named(missing)
 
     header = join(["gbifID", "speciesKey", "species", "decimalLatitude",
-                      "decimalLongitude",
-                      "year", "month", "basisOfRecord",
-                      "coordinateUncertaintyInMeters",
-                      "issue"], '\t')
+                      "decimalLongitude", "year", "month", "basisOfRecord",
+                      "coordinateUncertaintyInMeters", "locality", "issue"], '\t')
     rows = [
-        "1\t100\tAcacia tortilis\t-1.5\t36.8\t1990\t3\tPRESERVED_SPECIMEN\t100\t",
-        "2\t100\tAcacia tortilis\t-1.5\t36.8\t1991\t\tPRESERVED_SPECIMEN\t100\t",    # no month
-        "3\t101\tFicus sur\t5.0\t10.0\t2001\t7\tLIVING_SPECIMEN\t\t",                # garden material
-        "4\t101\tFicus sur\t5.0\t10.0\t2001\t7\tHUMAN_OBSERVATION\t50000\t",         # too uncertain
-        "5\t\t\t5.0\t10.0\t2001\t7\tHUMAN_OBSERVATION\t\t",                          # no species
-        "6\t102\tAloe vera\t-33.9\t18.4\t1850\t11\tHUMAN_OBSERVATION\t\t",
-        "7\t102\tAloe vera\t-33.91\t18.41\t1851\t1\tOBSERVATION\t\t"]               # in an excluded cell
+        "1\t100\tAcacia tortilis\t-1.5\t36.8\t1990\t3\tPRESERVED_SPECIMEN\t100\tNairobi\t",
+        "2\t100\tAcacia tortilis\t-1.5\t36.8\t1991\t\tPRESERVED_SPECIMEN\t100\t\t",   # no month
+        "3\t101\tFicus sur\t5.0\t10.0\t2001\t7\tLIVING_SPECIMEN\t\t\t",               # garden material
+        "4\t101\tFicus sur\t5.0\t10.0\t2001\t7\tHUMAN_OBSERVATION\t50000\t\t",        # too uncertain
+        "5\t\t\t5.0\t10.0\t2001\t7\tHUMAN_OBSERVATION\t\t\t",                         # no species
+        "6\t102\tAloe vera\t-33.9\t18.4\t1850\t11\tHUMAN_OBSERVATION\t\t\t",
+        "7\t102\tAloe vera\t-33.91\t18.41\t1851\t1\tOBSERVATION\t\t\t",               # at a country centroid
+        "8\t103\tProtea cynaroides\t-34.0\t18.5\t1990\t2\tPRESERVED_SPECIMEN\t\t\t",  # on the lattice
+        "9\t103\tProtea cynaroides\t-34.125\t18.375\t1995\t2\tPRESERVED_SPECIMEN\t\tHort. Kirstenbosch.\t",
+        "10\t104\tCycas revoluta\t-25.7\t28.2\t1996\t2\tHUMAN_OBSERVATION\t\tPretoria, greenhouse\t"
+    ]
     dir = mktempdir()
     input = joinpath(dir, "in.csv")
     write(input, header * "\n" * join(rows, "\n") * "\n")
     output = joinpath(dir, "records.csv")
-    excluded = Set([GBIFClean.cellkey(-33.91, 18.41)])
-    result = GBIFClean.clean_records(input, output, excluded = excluded)
-    @test result.seen == 7
-    @test result.kept == 2
-    @test result.bydecade == Dict(1990 => 1, 1850 => 1)
+    result = GBIFClean.clean_records(input, output,
+                                     centroids = GBIFClean.PlaceIndex([-33.91],
+                                                                      [18.41]),
+                                     gardens = GBIFClean.PlaceIndex([-34.126],
+                                                                    [18.376]))
+    @test result.seen == 10
+    @test result.kept == 4
+    @test result.centroid == 1 && result.greenhouse == 1
+    @test result.lattice == 1 && result.garden == 1 && result.named == 1
+    @test result.bydecade == Dict(1990 => 3, 1850 => 1)
     kept = CSV.read(output, DataFrame)
-    @test kept.gbifID == [1, 6]
+    @test kept.gbifID == [1, 6, 8, 9]
+    @test kept.on_lattice == [false, false, true, false]
+    @test kept.near_garden == [false, false, false, true]
+    @test kept.garden_named == [false, false, false, true]
     @test names(kept) == string.(GBIFClean.COLUMNS)
 end
 

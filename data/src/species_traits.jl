@@ -1,23 +1,21 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 #
-# From cleaned GBIF records and the ERA5 monthly series, the per-species table the run is
-# parameterised from, and the Africa subset of the records the burn-in seeds from.
+# From cleaned GBIF records, the Africa records the model seeds from: every record of `records.csv`
+# inside Africa's outline, with the flag columns cleaning wrote.
 #
 #     julia --project data/src/species_traits.jl [--force]
 #
-# For every record: the ERA5 cell containing it and the twelve months ending in the month it was
-# recorded; over that window the minimum monthly 2 m temperature, and the means of total
-# precipitation, net solar radiation and soil water, as ClimatePref did for the published
-# envelopes. Per species: the mean and standard deviation of those across its records within
-# Africa. Records are inside Africa when they fall in an active cell of a geographic study grid
-# cut to Natural Earth's continent outline, which needs no projection and follows the original's
-# continent raster.
+# Records are inside Africa when they fall in an active cell of a geographic study grid cut to
+# Natural Earth's continent outline, which needs no projection and follows the original's continent
+# raster. Placing records on the run's grid and the effort raster are done at run time, since the
+# grid is chosen then. Writes `records_africa.csv`.
 #
-# Reads the netCDF files directly with NCDatasets rather than through EcoSISTEM's reader, because
-# the join is at the data's own resolution and what the files call their axes is not yet known
-# (see `inventory.jl`). Writes `species.csv`, `records_africa.csv` and `record_climate.csv`.
-# Placing records on the run's grid and the effort raster are done at run time, since the grid
-# is chosen then.
+# Also holds what a per-species climate table is built from: the twelve-month window of each
+# record's climate (`load_stack`, `window_summary`, `record_climate`) and the per-species summaries
+# (`species_table`). These read the netCDF files directly with NCDatasets rather than through
+# EcoSISTEM's reader: the join takes each file's own values at its own cells, as the published
+# envelopes did, where EcoSISTEM's read expresses a layer in its catalogue unit (soil water as a
+# depth over its layer).
 
 module SpeciesTraits
 
@@ -262,13 +260,10 @@ function in_africa(records::DataFrame)
     return inside
 end
 
-# A `(year, month)` pair as `YYYY-MM`.
-_monthlabel((y, m)) = string(y, "-", lpad(m, 2, "0"))
-
 # --- the script ----------------------------------------------------------------------
 
 function main(argv)
-    out = joinpath(datadir(), "species.csv")
+    out = joinpath(datadir(), "records_africa.csv")
     if isfile(out) && !forced(argv)
         println("Already have ", out,
                 "; nothing to do (use --force to rebuild).")
@@ -276,36 +271,16 @@ function main(argv)
     end
     records = CSV.read(joinpath(datadir(), "records.csv"), DataFrame)
     println("Read ", nrow(records), " records")
-
-    inside = in_africa(records)
-    africa = records[inside, :]
-    println(nrow(africa), " records inside Africa's outline")
-    africapath = joinpath(datadir(), "records_africa.csv")
-    CSV.write(africapath, africa)
-    write_provenance(africapath,
-                     source = "records.csv within Natural Earth Africa",
-                     records = nrow(africa))
-
-    era5 = joinpath(datadir(), "era5")
-    stacks = Dict(v => load_stack(era5, v) for v in VARIABLES)
-    first_month, last_month = stacks["t2m"].months[1], stacks["t2m"].months[end]
-    println("ERA5 months ", first_month, " to ", last_month)
-
-    climate = record_climate(africa, stacks)
-    climatepath = joinpath(datadir(), "record_climate.csv")
-    CSV.write(climatepath, climate)
-    write_provenance(climatepath, source = "records_africa.csv joined to era5/",
-                     window_months = WINDOW,
-                     records_with_climate = count(!isnan, climate.tmin))
-
-    table = species_table(climate)
-    CSV.write(out, table)
-    write_provenance(out, source = "record_climate.csv grouped by species",
-                     species = nrow(table), min_records = MIN_RECORDS,
-                     era5_first_month = _monthlabel(first_month),
-                     era5_last_month = _monthlabel(last_month))
-    println(nrow(table), " species with at least ", MIN_RECORDS,
-            " records carrying climate -> ", out)
+    africa = records[in_africa(records), :]
+    CSV.write(out, africa)
+    write_provenance(out, source = "records.csv within Natural Earth Africa",
+                     records = nrow(africa),
+                     species = length(unique(africa.speciesKey)),
+                     flagged_on_lattice = count(africa.on_lattice),
+                     flagged_near_garden = count(africa.near_garden),
+                     flagged_garden_named = count(africa.garden_named))
+    println(nrow(africa), " records of ", length(unique(africa.speciesKey)),
+            " species inside Africa's outline -> ", out)
     return nothing
 end
 

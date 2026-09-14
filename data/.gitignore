@@ -1,5 +1,7 @@
 # The large downloads and the tables derived from them stay out of git; the scripts that fetch
 # them, the provenance sidecars, the request keys and the small summary tables are tracked.
+# `centroids.csv` and `gardens.csv` are small but derived from catalogues that state no licence
+# or a GPL one.
 era5/*.nc
 twentycr/*/*.nc
 gbif/*/*.zip
@@ -7,3 +9,5 @@ gbif/*/*.csv
 *.part
 records*.csv
 record_climate.csv
+centroids.csv
+gardens.csv

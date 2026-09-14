@@ -1,0 +1,9 @@
+source = "GBIF Catalogue of Centroids, centroids.tsv"
+bytes = 41393
+commit = "0959e14d0e7a90de28ae2bc23cf570b791e112ef"
+citation = "GBIF Catalogue of Centroids, https://github.com/gbif/catalogue-of-centroids (no licence stated)"
+url = "https://raw.githubusercontent.com/gbif/catalogue-of-centroids/0959e14d0e7a90de28ae2bc23cf570b791e112ef/centroids.tsv"
+types = ["PCLI"]
+written = "2026-09-13T14:38:00.627"
+centroids = 1103
+writer = "data/src/centroids.jl"

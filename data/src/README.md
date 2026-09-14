@@ -2,27 +2,33 @@
 
 Scripts that fetch and prepare every input the Africa runs need. They write under `data/`
 (gitignored, or the directory named by `AFRICA_DATADIR`), and beside each output a
-`*.provenance.toml` saying where it came from, when, and how big it is. Each script is
-idempotent: a file already present is not fetched or rebuilt unless `--force` is given.
+`*.provenance.toml` saying where it came from, when, and how big it is. EcoSISTEM writes those
+records for the ERA5 and 20CRv3 downloads, which go through its `fetchfiles`; the other scripts
+write their own. Each script is idempotent: a file already present is not fetched again, and a
+table already built is rebuilt only with `--force`.
 
 Run them from the repository root in this order. Nothing here is run by the test suite except
 the pure functions, which `test/runtests.jl` exercises on fabricated inputs.
 
 | step | script | needs | writes |
 | --- | --- | --- | --- |
-| 1 | `era5_download.jl` | a CDS account: `~/.cdsapirc`, read by CDSAPI.jl | `era5/era5_<var>_<decade>.nc`, one variable per decade file |
+| 1 | `era5_download.jl` | a CDS account: `~/.cdsapirc`, read by CDSAPI.jl | `era5/era5_<var>_<decade>s.nc`, one variable per decade file; a decade not yet complete is `era5_<var>_<first>-<last>.nc` |
 | 1b | `twentycr_download.jl` | nothing: NOAA PSL serves 20CRv3 over plain HTTPS | `twentycr/SI-MO/`, five global monthly files spanning 1806 to 2015 (2 m temperature, precipitation rate, downward and upward shortwave, soil moisture by layer), for the extension before 1940 |
 | 2 | `inventory.jl` | the netCDF files | `inventory.csv`: every file's variables, unit strings, time axis, lattice |
 | 3 | `gbif_download.jl` | a GBIF account: `GBIF_USER`, `GBIF_PWD`, `GBIF_EMAIL` in the environment, or `user`, `pwd`, `email` in `~/.gbifrc` | two downloads, `gbif/era5/<key>.csv` (1940 onward, the ERA5 years) and `gbif/early/<key>.csv` (1806-1939, the years only 20CRv3 reaches), each with its DOI in its provenance |
-| 4 | `gbif_clean.jl` | the GBIF CSVs | `records.csv` from the `era5` download and `records_early.csv` from `early`: one row per usable record, cleaned |
-| 5 | `species_traits.jl` | `records.csv`, the ERA5 files, a cached WorldClim layer to place the continent outline | `species.csv`, `records_africa.csv`, `record_climate.csv` |
+| 3b | `centroids.jl` | nothing: GBIF's Catalogue of Centroids on GitHub, at a pinned commit | `centroids.csv`: country centroids, which `gbif_clean.jl` drops records near |
+| 3c | `gardens.jl` | nothing: CoordinateCleaner's institutions gazetteer on GitHub, at a pinned commit | `gardens.csv`: botanic gardens, which `gbif_clean.jl` flags records near |
+| 4 | `gbif_clean.jl` | the GBIF CSVs | `records.csv` from the `era5` download and `records_early.csv` from `early`: one row per usable record, cleaned, with three flag columns |
+| 5 | `species_traits.jl` | `records.csv`, a cached WorldClim layer to place the continent outline | `records_africa.csv`, the records the model seeds from |
 
 ```sh
-julia --project data/src/era5_download.jl    # hours, queued at the CDS; resumable
-julia --project data/src/twentycr_download.jl # about 4 GB, no credentials; extension only
+julia --project data/src/era5_download.jl    # hours, queued at the CDS; resumable; --dry-run lists
+julia --project data/src/twentycr_download.jl # about 2 GB, no credentials; extension only
 julia --project data/src/inventory.jl
 julia --project data/src/gbif_download.jl --request-only   # submit both; GBIF emails when ready
 julia --project data/src/gbif_download.jl                  # later: wait if needed, then fetch
+julia --project data/src/centroids.jl
+julia --project data/src/gardens.jl
 julia --project data/src/gbif_clean.jl       # every download present; or name one
 julia --project data/src/species_traits.jl
 ```
@@ -39,11 +45,12 @@ cannot find its credentials says which are missing and stops before touching the
 - **`era5/`**: ERA5 monthly means on single levels, 0.25 degrees, over the Africa box, netCDF,
   one variable per file per decade: `t2m` (2 m temperature, K), `tp` (total precipitation,
   m/day as the monthly mean of the daily accumulation), `swvl1` (volumetric soil water, layer 1,
-  m^3/m^3), `ssr` (surface net solar radiation, J/m^2/day). The request is
-  `era5_request.toml`, which is also the fixture EcoSISTEM's download code is built against.
+  m^3/m^3), `ssr` (surface net solar radiation, J/m^2/day). The request each file came from,
+  and the CDS job that served it, are in its provenance record.
 - **`twentycr/SI-MO/`**: 20CRv3 monthly means from NOAA PSL, global, PSL's own file names,
-  each file 1806-01 to 2015-12. PSL's `SI` directory serves byte-identical files, so it is not
-  fetched; the quality boundaries (1836 and 1981) lie inside each file. Not cut to Africa here.
+  each file 1806-01 to 2015-12, fetched from the URLs in EcoSISTEM's `TwentyCR` catalogue. PSL's
+  `SI` directory serves byte-identical files, so it is not fetched; the quality boundaries (1836
+  and 1981) lie inside each file. Not cut to Africa here.
 - **`inventory.csv`**: what the files actually say, recorded before anything trusts them:
   variable names, `units` attributes verbatim, time axis calendar, first and last dates,
   spacing and whether it is even, latitude and longitude ranges and spacing and whether the
@@ -54,18 +61,26 @@ cannot find its credentials says which are missing and stops before touching the
   each with its request key and DOI. Two rather than one so that a paper built on the ERA5 years
   alone has exactly the dataset it used to cite.
 - **`records.csv`** (from `era5`) and **`records_early.csv`** (from `early`): `gbifID,
-  speciesKey, species, decimalLatitude, decimalLongitude, year, month` for every record with a species-level name, coordinates without a flagged geospatial
-  issue, a month and a year, an accepted basis of record, coordinate uncertainty below the
-  threshold, and not sharing a 0.02 degree cell with a botanic garden or country centroid when
-  `data/gardens.csv` and `data/centroids.csv` are present.
+  speciesKey, species, decimalLatitude, decimalLongitude, year, month, on_lattice, near_garden,
+  garden_named` for every record with a species-level name, coordinates, a month and a year, an
+  accepted basis of record and coordinate uncertainty below the threshold, that is not within
+  1 km of a country centroid in `data/centroids.csv` and whose locality does not mention a
+  greenhouse, glasshouse, hothouse or shade house. The flags mark what one use may exclude and
+  another keep: `on_lattice` (both coordinates whole multiples of a quarter degree, a position
+  set to a coarse grid or rounded; quarter-degree square centres, the unit southern African
+  herbaria georeference to, are not flagged), `near_garden` (within 1 km of a botanic garden in
+  `data/gardens.csv`) and `garden_named` (the locality names a botanic garden, Hort., a nursery or
+  cultivation). The provenance counts the records dropped and flagged.
+- **`centroids.csv`**: `iso2, name, source, latitude, longitude` for the country-level entries
+  of GBIF's Catalogue of Centroids at the commit named in `centroids.jl`. Regenerated rather
+  than committed, since the catalogue states no licence.
+- **`gardens.csv`**: `name, type, country, source, latitude, longitude` for every botanic garden
+  in CoordinateCleaner's `institutions` gazetteer at the commit named in `gardens.jl`: the rows
+  typed as gardens and those of other types (mostly herbaria) whose name says botanic garden or
+  arboretum. Regenerated rather than committed, since CoordinateCleaner is GPL-3.
 - **`records_africa.csv`**: the records of `records.csv` that fall in an active cell of a
-  geographic grid cut to Natural Earth's continent-level Africa (land inside the outline). The
-  burn-in seeds from these; they are placed on the run's own grid at run time, since that grid
-  is chosen then, and the effort raster is counted from them at the same point.
-- **`record_climate.csv`**: `records_africa.csv` with the twelve-month climate summaries at each
-  record's ERA5 cell and date: `tmin` (minimum monthly 2 m temperature, K), `tp`, `ssr`,
-  `swvl1` (means), `NaN` where the window is not covered.
-- **`species.csv`**: per species with at least two records carrying climate, the record count
-  and the mean and standard deviation across records of those summaries, which the run uses as
-  niche means and widths and as resource demands: `tmin_mean, tmin_sd, tp_mean, tp_sd,
-  ssr_mean, swvl1_mean`.
+  geographic grid cut to Natural Earth's continent-level Africa (land inside the outline), flags
+  included. This is the seeding dataset: every flagged record is kept for seeding, since a garden
+  plant grows where it is recorded and a lattice point is close enough to place a seed in a grid
+  cell. They are placed on the run's own grid at run time, since that grid is chosen then, and
+  the effort raster is counted from them at the same point.

@@ -23,8 +23,7 @@ end
     AFRICA_BOX
 
 The geographic box every download is cut to, in degrees: the continent with Madagascar and a
-margin of about a degree. The same numbers as `era5_request.toml`'s `area`, which lists them
-north, west, south, east as the CDS expects.
+margin of about a degree. `era5_download.jl` hands it to the CDS as north, west, south, east.
 """
 const AFRICA_BOX = (north = 40.0, west = -25.0, south = -36.0, east = 56.0)
 
@@ -53,11 +52,11 @@ end
 
 # The script a provenance record is written by, named from the module `common.jl` was included
 # into, so every sidecar says which file produced it without any script having to say so.
-const SCRIPTS = Dict("ERA5Download" => "era5_download.jl",
-                     "TwentyCRDownload" => "twentycr_download.jl",
-                     "Inventory" => "inventory.jl",
+const SCRIPTS = Dict("Inventory" => "inventory.jl",
                      "GBIFDownload" => "gbif_download.jl",
                      "GBIFClean" => "gbif_clean.jl",
+                     "Centroids" => "centroids.jl",
+                     "Gardens" => "gardens.jl",
                      "SpeciesTraits" => "species_traits.jl")
 function _writer()
     return "data/src/" * get(SCRIPTS, string(nameof(@__MODULE__)),
