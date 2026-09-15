@@ -11,3 +11,5 @@ records*.csv
 record_climate.csv
 centroids.csv
 gardens.csv
+evi/*.hdf
+evi/*.nc

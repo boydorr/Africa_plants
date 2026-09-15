@@ -17,6 +17,8 @@
       lattice, within 1 km of a botanic garden (`data/src/gardens.jl`) or naming a garden in
       their locality, so that each use of the records chooses what to exclude.
     - `records_africa.csv` is the seeding dataset: every cleaned record inside Africa, flags kept.
+    - `data/src/evi_download.jl` and `evi_mean.jl` fetch MODIS/Terra monthly EVI for 2001 to 2025
+      and average it into one layer, the vegetation proxy for the collection-effort correction.
     - The ERA5 and 20CRv3 downloads go through EcoSISTEM (`era5requests`, `TwentyCR`,
       `fetchfiles`), which writes the provenance records.
 - v0.1.0

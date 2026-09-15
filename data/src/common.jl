@@ -57,6 +57,8 @@ const SCRIPTS = Dict("Inventory" => "inventory.jl",
                      "GBIFClean" => "gbif_clean.jl",
                      "Centroids" => "centroids.jl",
                      "Gardens" => "gardens.jl",
+                     "EVIDownload" => "evi_download.jl",
+                     "EVIMean" => "evi_mean.jl",
                      "SpeciesTraits" => "species_traits.jl")
 function _writer()
     return "data/src/" * get(SCRIPTS, string(nameof(@__MODULE__)),

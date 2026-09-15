@@ -46,6 +46,8 @@ include(joinpath(DATASRC, "gbif_download.jl"))
 include(joinpath(DATASRC, "gbif_clean.jl"))
 include(joinpath(DATASRC, "centroids.jl"))
 include(joinpath(DATASRC, "gardens.jl"))
+include(joinpath(DATASRC, "evi_download.jl"))
+include(joinpath(DATASRC, "evi_mean.jl"))
 include(joinpath(DATASRC, "species_traits.jl"))
 
 using NCDatasets
@@ -132,6 +134,71 @@ end
     @test record.url == assets[1].url
     @test record.dataset == "TwentyCR" && record.code == "air"
     @test isnothing(record.fetched)
+end
+
+@testset "Data scripts: EVI" begin
+    # Months come from the day of year, leap years included.
+    @test EVIDownload.granule_month("MOD13C2.A2020001.061.2020328142931.hdf") ==
+          Dates.Date(2020, 1, 1)
+    @test EVIDownload.granule_month("MOD13C2.A2024061.061.2024100000000.hdf") ==
+          Dates.Date(2024, 3, 1)
+    @test EVIDownload.granule_month("MOD13C2.A2025060.061.2025100000000.hdf") ==
+          Dates.Date(2025, 3, 1)
+    @test_throws ErrorException EVIDownload.granule_month("MYD13C2.A2020001.061.2020328142931.hdf")
+    # A month listed twice keeps its newer production.
+    names = ["MOD13C2.A2025152.061.2025300000000.hdf",
+        "MOD13C2.A2025121.061.2025170000000.hdf",
+        "MOD13C2.A2025152.061.2025200000000.hdf"]
+    @test EVIDownload.latest_per_month(names) ==
+          ["MOD13C2.A2025121.061.2025170000000.hdf",
+        "MOD13C2.A2025152.061.2025300000000.hdf"]
+    base = "https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/MOD13C2.061/"
+    table = DataFrame("Granule UR" => ["a", "b", "c", "d"],
+                      "Online Access URLs" =>
+                          [base * "x/MOD13C2.A2001001.061.2020061230446.hdf",
+                              base * "y/MOD13C2.A2025152.061.2025200000000.hdf",
+                              base *
+                              "z/MOD13C2.A2025152.061.2025300000000.hdf," *
+                              "https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-public/BROWSE.jpg",
+                              base * "w/MOD13C2.A2026001.061.2026040000000.hdf"
+                          ],
+                      "Size" => [89.7, 95.0, 96.0, 90.0])
+    granules = EVIDownload.parse_catalogue(table)
+    @test [g.name for g in granules] ==
+          ["MOD13C2.A2001001.061.2020061230446.hdf",
+        "MOD13C2.A2025152.061.2025300000000.hdf"]
+    @test granules[2].month == Dates.Date(2025, 6, 1)
+    @test granules[2].megabytes == 96.0
+    @test endswith(granules[2].url, "z/MOD13C2.A2025152.061.2025300000000.hdf")
+    withenv("EARTHDATA_TOKEN" => "  a-token\n") do
+        @test EVIDownload.token() == "a-token"
+    end
+    if !Sys.iswindows()
+        withenv("EARTHDATA_TOKEN" => nothing, "HOME" => mktempdir()) do
+            @test_throws ErrorException EVIDownload.token()
+        end
+    end
+    dir = mktempdir()
+    good = joinpath(dir, "good.hdf")
+    write(good, UInt8[0x0e, 0x03, 0x13, 0x01, 0x00])
+    bad = joinpath(dir, "bad.hdf")
+    write(bad, "<html>login</html>")
+    @test EVIDownload._ishdf4(good) && !EVIDownload._ishdf4(bad)
+
+    # Averaging keeps good (0) and marginal (1) months, and leaves out fill, snow or ice and cloud.
+    total = zeros(Float64, 2, 2)
+    count = zeros(Int16, 2, 2)
+    EVIMean.accumulate!(total, count, Int16[5000 -3000; 2000 1000],
+                        Int8[0 0; 2 1])
+    EVIMean.accumulate!(total, count, Int16[3000 4000; 2500 -3000],
+                        Int8[1 0; 3 0])
+    @test count == Int16[2 1; 0 1]
+    evi = EVIMean.finish(total, count)
+    @test evi[1, 1] ≈ 0.4f0 && evi[1, 2] ≈ 0.4f0 && evi[2, 2] ≈ 0.1f0
+    @test isnan(evi[2, 1])
+    @test_throws ErrorException EVIMean.accumulate!(total, count,
+                                                    zeros(Int16, 3, 2),
+                                                    zeros(Int8, 3, 2))
 end
 
 @testset "Data scripts: provenance" begin
