@@ -57,10 +57,10 @@ function main(argv)
     table = country_centroids(tmp)
     rm(tmp)
     CSV.write(out, table)
-    write_provenance(out, source = "GBIF Catalogue of Centroids, centroids.tsv",
-                     url = URL, commit = COMMIT, types = TYPES,
-                     centroids = nrow(table),
-                     citation = "GBIF Catalogue of Centroids, https://github.com/gbif/catalogue-of-centroids (no licence stated)")
+    write_sidecar(out, source = "GBIF Catalogue of Centroids, centroids.tsv",
+                  url = URL, commit = COMMIT, types = TYPES,
+                  centroids = nrow(table),
+                  citation = "GBIF Catalogue of Centroids, https://github.com/gbif/catalogue-of-centroids (no licence stated)")
     println(nrow(table), " centroids -> ", out)
     return nothing
 end

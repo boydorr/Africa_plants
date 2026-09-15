@@ -58,6 +58,8 @@ using Dates: DateTime, Month
 import Dates
 using TOML
 using Statistics
+using SparseArrays: sparse
+using DimensionalData: DimensionalData
 
 # Write a small ERA5-shaped file: `variable` over a 3 x 4 lattice for `months` consecutive months
 # from January `year0`, valued `base + t` in month t at every cell, with the CDS's own axis names
@@ -211,7 +213,7 @@ end
     dir = mktempdir()
     out = joinpath(dir, "thing.csv")
     write(out, "a\n")
-    Inventory.write_provenance(out, source = "a test", n = 3)
+    Inventory.write_sidecar(out, source = "a test", n = 3)
     rec = TOML.parsefile(Inventory.provenance_path(out))
     @test rec["writer"] == "data/src/inventory.jl"
     @test rec["source"] == "a test" && rec["n"] == 3 && rec["bytes"] == 2
@@ -461,6 +463,13 @@ end
     @test chosen.perspecies == sizeof(Int64) * length(environment.active)
     @test count(environment.active) > 0
 
+    # Kinshasa is on land; a point in the Gulf of Guinea is off the land, and one in the South
+    # Atlantic off the grid altogether.
+    places = grid_cells(environment, [-4.32, -2.0, -50.0], [15.31, 3.0, -20.0])
+    @test places[1] > 0 && places[2] == 0 && places[3] == 0
+    @test parent(environment.active)[places[1]]
+    @test grid_cells(environment, [-2.0], [3.0], active = false)[1] > 0
+
     species = build_species(NUMSPECIES, tolerance = (295.0K, 50.0K),
                             toleranceaxis = Temperature,
                             demand = 10.0kJ / month_mean_duration,
@@ -470,6 +479,101 @@ end
     simulate!(eco, 1year - 1month_mean_duration, 1month_mean_duration)
     @test sum(eco.abundances.matrix) > 0
     @test count(>(0), sum(eco.abundances.matrix, dims = 2)) > 0
+end
+
+@testset "The species pool" begin
+    envelopes = DataFrame(species = ["A a", "B b", "C c"],
+                          tmin = [280.0, 290.0, 300.0],
+                          tp = [0.001, 0.002, 0.003],
+                          ssr = [1.0e7, 1.5e7, 2.0e7],
+                          swvl1 = [0.1, 0.2, 0.3])
+    widths = DataFrame(species = ["A a", "B b", "C c", "D d"],
+                       tmin_sd = [1.0, 3.0, missing, 2.0],
+                       tp_sd = [0.0005, 0.0, 0.001, 0.001])
+    built = species_pool(envelopes, widths)
+    @test built.unmatched == ["D d"]
+    @test built.nowidth == ["C c"]
+    @test built.pool.species == ["A a", "B b"]
+    # Widths gain a tenth of the largest width in the pool, and precipitation is read in mm/day.
+    @test built.pool.tmin_sd ≈ [1.3, 3.3]
+    @test built.pool.tp ≈ [1.0, 2.0]
+    @test built.pool.tp_sd ≈ [0.55, 0.05]
+
+    species = africa_species(built.pool, density = 4.0 / m^2, seed = 3)
+    @test species.names == ["A a", "B b"]
+    again = africa_species(built.pool, density = 4.0 / m^2, seed = 3)
+    @test species.movement.kernels[1].dist == again.movement.kernels[1].dist
+end
+
+@testset "Climate timing" begin
+    # A two-year monthly stack whose value is its month's ordinal, on real month starts.
+    dates = [DateTime(1940, 1, 1) + Month(k - 1) for k in 1:24]
+    values = reshape(repeat(1.0:24.0, inner = 4), 2, 2, 24) .* K
+    stack = EcoSISTEM.ClimateRaster(ERA,
+                                    DimensionalData.DimArray(values,
+                                                             (DimensionalData.Y(1:2),
+                                                              DimensionalData.X(1:2),
+                                                              DimensionalData.Ti(dates))),
+                                    "t2m")
+    @test Africa._retime(stack, ForwardClimate()) === stack
+    reversed = Africa._retime(stack, ReversedClimate())
+    @test reversed.array[1, 1, :] == (24.0:-1.0:1.0) .* K
+    @test DimensionalData.lookup(reversed.array, DimensionalData.Ti) ==
+          (0:23) .* 1.0month_mean_duration
+    held = Africa._retime(stack, HeldClimateYear(1941))
+    @test held.array[2, 2, :] == (13.0:24.0) .* K
+    @test DimensionalData.lookup(held.array, DimensionalData.Ti) ==
+          (1:12) .* 1.0month_mean_duration
+    @test_throws ErrorException Africa._retime(stack, HeldClimateYear(1942))
+    # Reversing twice returns the original slices.
+    twice = Africa._retime(Africa._retime(stack, ReversedClimate()),
+                           ReversedClimate())
+    @test parent(twice.array) == parent(stack.array)
+end
+
+@testset "Filling to capacity" begin
+    counts = [2 0 1; 6 0 0]
+    # Cell 1: space for 12 at a mean demand of 1 m^2, light for 25.6 at a mean of 0.25 x 1 + 0.75 x
+    # 0.5 kJ/day, so space binds and the shares of 1:3 fill 12. Cell 3 holds species 1 only and
+    # its light, at 1 kJ/day each, binds at 4.
+    supply = ([12.0, 5.0, 100.0] .* m^2, [16.0, 5.0, 4.0] .* kJ / Unitful.d)
+    demand = ([1.0, 1.0] .* m^2, [1.0, 0.5] .* kJ / Unitful.d)
+    filled = fill_to_capacity(sparse(counts), supply, demand)
+    @test filled.species == [1, 2, 1]
+    @test filled.cell == [1, 1, 3]
+    @test filled.count == [3, 9, 4]
+    # The same fact in other units fills the same.
+    @test fill_to_capacity(sparse(counts),
+                           (supply[1], uconvert.(J / Unitful.d, supply[2])),
+                           demand) == filled
+end
+
+@testset "Seeding scale" begin
+    area = fill(1.0e6m^2, 2, 2)
+    evi = [0.5 0.25; NaN 0.0]
+    fraction = [1.0 0.5; 1.0 1.0]
+    # Two cells carry vegetation: 0.5 x 1e6 and 0.25 x 0.5 x 1e6, together 0.625e6 m^2.
+    c = seeding_scale(evi, fraction, area, 2.5e6m^2)
+    @test c ≈ 4.0 / m^2
+    @test seeding_scale(evi, fraction, area, 2.5e6m^2, density = 2.0 / m^2) ≈
+          8.0 / m^2
+    # A cell that alone held every record would seed the whole of its share of the land.
+    records = [2 1; 3 0]
+    factors = seeding_factors(c, evi, fraction, area, records)
+    @test factors[1, 1] ≈ 1.0e6
+    @test factors[1, 2] ≈ 0.5e6
+    # No EVI, or none worth the name, seeds only the records themselves; no records, nothing.
+    @test factors[2, 1] == 1.0
+    @test isnan(factors[2, 2])
+    @test sum(filter(!isnan, factors) .* [2, 3, 1]) ≈ 2.5e6 + 3
+    @test seeding_factors(c, [1.0e-9;;], [1.0;;], [1.0m^2;;], [5;;]) == [1.0;;]
+    @test_throws ErrorException seeding_scale([NaN;;], [1.0;;], [1.0m^2;;],
+                                              1.0m^2)
+
+    # A record in the burn-in's first month is at elapsed zero; one after it is before the run.
+    @test months_back([2025, 2026, 1940], [12, 1, 1]) == [0, -1, 1031]
+    grid = (lon = [0.025, 0.075], lat = [0.075, 0.025])
+    @test fine_cells([0.07, 0.01, 1.0], [0.01, 0.07, 0.0], grid) == [1, 4, 0]
 end
 
 end

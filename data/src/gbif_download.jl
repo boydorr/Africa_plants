@@ -181,15 +181,15 @@ end
 # it covers, and the request as sent.
 function provenance!(csv::AbstractString, key::AbstractString, s, cred, name,
                      range)
-    write_provenance(csv, source = "GBIF occurrence download $key ($name)",
-                     doi = something(s.doi, "unknown"),
-                     license = something(s.license, "unknown"),
-                     years = string(range.from, "-",
-                                    isnothing(range.to) ? "present" : range.to),
-                     citation = "GBIF.org (" * string(Dates.year(Dates.now())) *
-                                ") GBIF Occurrence Download https://doi.org/" *
-                                something(s.doi, "unknown"),
-                     filter = filter_json(from = range.from, to = range.to))
+    write_sidecar(csv, source = "GBIF occurrence download $key ($name)",
+                  doi = something(s.doi, "unknown"),
+                  license = something(s.license, "unknown"),
+                  years = string(range.from, "-",
+                                 isnothing(range.to) ? "present" : range.to),
+                  citation = "GBIF.org (" * string(Dates.year(Dates.now())) *
+                             ") GBIF Occurrence Download https://doi.org/" *
+                             something(s.doi, "unknown"),
+                  filter = filter_json(from = range.from, to = range.to))
     return nothing
 end
 

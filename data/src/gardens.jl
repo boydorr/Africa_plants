@@ -72,12 +72,12 @@ function main(argv)
     table = botanic_gardens(institutions)
     CSV.write(out, table)
     typed = count(==("Botanic_garden"), table.type)
-    write_provenance(out, source = "CoordinateCleaner institutions gazetteer",
-                     url = URL, commit = COMMIT, gardens = nrow(table),
-                     typed_botanic_garden = typed,
-                     named_as_garden = nrow(table) - typed,
-                     licence = "GPL-3 (CoordinateCleaner)",
-                     citation = "Zizka et al. (2019) CoordinateCleaner: standardized cleaning of occurrence records from biological collection databases. Methods in Ecology and Evolution 10:744-751, doi:10.1111/2041-210X.13152")
+    write_sidecar(out, source = "CoordinateCleaner institutions gazetteer",
+                  url = URL, commit = COMMIT, gardens = nrow(table),
+                  typed_botanic_garden = typed,
+                  named_as_garden = nrow(table) - typed,
+                  licence = "GPL-3 (CoordinateCleaner)",
+                  citation = "Zizka et al. (2019) CoordinateCleaner: standardized cleaning of occurrence records from biological collection databases. Methods in Ecology and Evolution 10:744-751, doi:10.1111/2041-210X.13152")
     println(nrow(table), " botanic gardens (", typed, " typed as gardens, ",
             nrow(table) - typed, " by name) -> ", out)
     return nothing

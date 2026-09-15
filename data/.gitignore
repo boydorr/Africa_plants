@@ -13,3 +13,5 @@ centroids.csv
 gardens.csv
 evi/*.hdf
 evi/*.nc
+species_widths.csv
+seeding_grid.nc

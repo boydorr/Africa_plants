@@ -138,10 +138,10 @@ function main(argv)
     table = inventory(dirs)
     out = joinpath(datadir(), "inventory.csv")
     CSV.write(out, table)
-    write_provenance(out,
-                     source = "netCDF attributes of " *
-                              join(repopath.(dirs), ", "),
-                     files = isempty(table) ? String[] : unique(table.file))
+    write_sidecar(out,
+                  source = "netCDF attributes of " *
+                           join(repopath.(dirs), ", "),
+                  files = isempty(table) ? String[] : unique(table.file))
     println("Inventoried ", isempty(table) ? 0 : length(unique(table.file)),
             " file(s), ", nrow(table), " variable(s) -> ", out)
     return nothing

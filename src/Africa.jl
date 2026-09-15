@@ -8,11 +8,22 @@
 module Africa
 
 using EcoSISTEM
+using RasterDataSources: EarthEnv, LandCover, WorldClim, BioClim
 using EcoSISTEM.Units
 using Unitful
 using Unitful.DefaultSymbols
 using Rasters: EPSG
 using MPI
+using CSV
+using DataFrames
+using Distributions: Uniform
+using Random
+using Dates: Dates
+using SparseArrays: SparseArrays
+using JLD2: JLD2
+using Diversity: norm_sub_alpha
+using DimensionalData: DimensionalData
+using NCDatasets: NCDatasets
 
 # EcoSISTEM's memory guidance for large runs, shared with its HPC scripts rather than copied.
 # It is an example file of that package, not its API, so the path is pinned by the EcoSISTEM
@@ -21,9 +32,26 @@ include(joinpath(pkgdir(EcoSISTEM), "examples", "HPC", "memory.jl"))
 
 include("config.jl")
 include("area.jl")
+include("landscape.jl")
+include("species.jl")
+include("seeding.jl")
+include("placement.jl")
+include("burnin.jl")
+include("run.jl")
 
 export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
        CANDIDATE_CELLSIZES,
-       perspecies_bytes, choose_cellsize, africa_area
+       perspecies_bytes, choose_cellsize, africa_area,
+       AVAILABLE_CLASSES, era5_dir, available_ground, africa_layers,
+       AbstractClimateTiming, ForwardClimate, ReversedClimate, HeldClimateYear,
+       ENVELOPES_DOI, SOIL_LAYER_DEPTH, species_pool, envelopes_record,
+       africa_species,
+       MIN_EVI_MONTHS, seeding_scale, seeding_factors, months_back, fine_cells,
+       read_seeding_grid, seeding_rows,
+       grid_cells,
+       fill_to_capacity, positioning_layers, africa_ecosystem, gbif_record,
+       burnin_table, run_burnin!, load_abundances, abundance_table,
+       continue_from!,
+       record_diversity!
 
 end

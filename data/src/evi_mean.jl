@@ -151,15 +151,15 @@ function main(argv)
     flush(stdout)
     result = mean_evi(joinpath.(dir, names))
     write_mean(out, result.evi, result.months)
-    write_provenance(out, source = "MOD13C2 v061 monthly files under data/evi",
-                     product = "MODIS/Terra Vegetation Indices Monthly L3 Global 0.05Deg CMG V061",
-                     doi = EVIDownload.DOI, citation = EVIDownload.CITATION,
-                     first_month = string(EVIDownload.granule_month(names[1])),
-                     last_month = string(EVIDownload.granule_month(names[end])),
-                     months = length(names),
-                     files = names,
-                     reliability_kept = "0 (good) and 1 (marginal)",
-                     cells_without_a_month = count(==(0), result.months))
+    write_sidecar(out, source = "MOD13C2 v061 monthly files under data/evi",
+                  product = "MODIS/Terra Vegetation Indices Monthly L3 Global 0.05Deg CMG V061",
+                  doi = EVIDownload.DOI, citation = EVIDownload.CITATION,
+                  first_month = string(EVIDownload.granule_month(names[1])),
+                  last_month = string(EVIDownload.granule_month(names[end])),
+                  months = length(names),
+                  files = names,
+                  reliability_kept = "0 (good) and 1 (marginal)",
+                  cells_without_a_month = count(==(0), result.months))
     println("wrote ", out)
     return nothing
 end

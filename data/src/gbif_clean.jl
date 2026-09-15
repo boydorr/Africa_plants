@@ -353,21 +353,21 @@ function main(argv)
         decades = sort(collect(result.bydecade))
         CSV.write(replace(output, ".csv" => "_by_decade.csv"),
                   DataFrame(decade = first.(decades), records = last.(decades)))
-        write_provenance(output,
-                         source = "GBIF simple CSV " * repopath(input),
-                         records_seen = result.seen, records_kept = result.kept,
-                         dropped_near_country_centroid = result.centroid,
-                         dropped_greenhouse = result.greenhouse,
-                         flagged_on_lattice = result.lattice,
-                         flagged_near_garden = result.garden,
-                         flagged_garden_named = result.named,
-                         lattice_deg = LATTICE_DEG,
-                         place_buffer_km = PLACE_BUFFER_KM,
-                         place_files = [repopath(f)
-                                        for f in (centroidfile, gardenfile)
-                                        if isfile(f)],
-                         max_uncertainty_m = MAX_UNCERTAINTY_M,
-                         basis_of_record = sort(collect(KEEP_BASIS)))
+        write_sidecar(output,
+                      source = "GBIF simple CSV " * repopath(input),
+                      records_seen = result.seen, records_kept = result.kept,
+                      dropped_near_country_centroid = result.centroid,
+                      dropped_greenhouse = result.greenhouse,
+                      flagged_on_lattice = result.lattice,
+                      flagged_near_garden = result.garden,
+                      flagged_garden_named = result.named,
+                      lattice_deg = LATTICE_DEG,
+                      place_buffer_km = PLACE_BUFFER_KM,
+                      place_files = [repopath(f)
+                                     for f in (centroidfile, gardenfile)
+                                     if isfile(f)],
+                      max_uncertainty_m = MAX_UNCERTAINTY_M,
+                      basis_of_record = sort(collect(KEEP_BASIS)))
         println("Kept ", result.kept, " of ", result.seen, " records -> ",
                 output, " (dropped ", result.centroid,
                 " near a country centroid, ",

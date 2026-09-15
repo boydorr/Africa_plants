@@ -273,12 +273,12 @@ function main(argv)
     println("Read ", nrow(records), " records")
     africa = records[in_africa(records), :]
     CSV.write(out, africa)
-    write_provenance(out, source = "records.csv within Natural Earth Africa",
-                     records = nrow(africa),
-                     species = length(unique(africa.speciesKey)),
-                     flagged_on_lattice = count(africa.on_lattice),
-                     flagged_near_garden = count(africa.near_garden),
-                     flagged_garden_named = count(africa.garden_named))
+    write_sidecar(out, source = "records.csv within Natural Earth Africa",
+                  records = nrow(africa),
+                  species = length(unique(africa.speciesKey)),
+                  flagged_on_lattice = count(africa.on_lattice),
+                  flagged_near_garden = count(africa.near_garden),
+                  flagged_garden_named = count(africa.garden_named))
     println(nrow(africa), " records of ", length(unique(africa.speciesKey)),
             " species inside Africa's outline -> ", out)
     return nothing

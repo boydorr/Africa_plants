@@ -7,6 +7,8 @@
       following EcoSISTEM's HPC example, and is configured from the environment.
     - JuliaDB, JuliaDBMeta, IndexedTables, JLD and AxisArrays no longer work with Julia
       v1.11 and/or are no longer part of EcoSISTEM.
+    - The data scripts' sidecar writer is `write_sidecar`, since EcoSISTEM exports
+      `write_provenance`.
   - Added
     - Simple testing and workflow.
     - Data scripts under `data/src/` that fetch ERA5 monthly means from the Climate Data
@@ -21,5 +23,16 @@
       and average it into one layer, the vegetation proxy for the collection-effort correction.
     - The ERA5 and 20CRv3 downloads go through EcoSISTEM (`era5requests`, `TwentyCR`,
       `fetchfiles`), which writes the provenance records.
+    - `species_pool` and `africa_species` build the simulated species from the published
+      climate envelopes and the niche widths `data/src/species_widths.jl` measures, each species
+      demanding ground, sunlight and soil water scaled by one `density`.
+    - `seeding_scale`, `seeding_factors` and `seeding_rows` turn occurrence records into the
+      individuals a backwards burn-in adds, scaled by EVI on the fine grid
+      `data/src/seeding_grid.jl` writes; `fill_to_capacity` sets the starting state.
+    - `grid_cells` places latitude and longitude positions on the projected grid.
+    - `africa_layers` builds the ERA5 climate and the three supplies forward, reversed or with one
+      year held; `africa_ecosystem`, `burnin_table`, `run_burnin!`, `continue_from!` and
+      `record_diversity!` run the burn-in and the forward run, driven by
+      `examples/africa_burnin.jl` and `examples/africa_forward.jl`.
 - v0.1.0
   - The code behind case study 2 of the EcoSISTEM arXiv paper, on EcoSISTEM 0.1.

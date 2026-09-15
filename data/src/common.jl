@@ -59,22 +59,24 @@ const SCRIPTS = Dict("Inventory" => "inventory.jl",
                      "Gardens" => "gardens.jl",
                      "EVIDownload" => "evi_download.jl",
                      "EVIMean" => "evi_mean.jl",
-                     "SpeciesTraits" => "species_traits.jl")
+                     "SpeciesTraits" => "species_traits.jl",
+                     "SpeciesWidths" => "species_widths.jl",
+                     "SeedingGrid" => "seeding_grid.jl")
 function _writer()
     return "data/src/" * get(SCRIPTS, string(nameof(@__MODULE__)),
                string(nameof(@__MODULE__)))
 end
 
 """
-    write_provenance(path; source, fields...)
+    write_sidecar(path; source, fields...)
 
 Write `path.provenance.toml` beside `path`: the script that wrote it, the `source` it came
 from, when, its size, and any further `fields` (strings, numbers, vectors or dictionaries of
 those). Nothing here may name an absolute path or a person: pass paths through
 [`repopath`](@ref) and keep credentials and addresses out of `fields`.
 """
-function write_provenance(path::AbstractString; source::AbstractString,
-                          fields...)
+function write_sidecar(path::AbstractString; source::AbstractString,
+                       fields...)
     record = Dict{String, Any}("writer" => _writer(),
                                "source" => source,
                                "written" => string(now(UTC)))
@@ -91,6 +93,6 @@ end
 """
     provenance_path(path)
 
-Return the path of the provenance sidecar `write_provenance` writes for `path`.
+Return the path of the provenance sidecar `write_sidecar` writes for `path`.
 """
 provenance_path(path::AbstractString) = path * ".provenance.toml"

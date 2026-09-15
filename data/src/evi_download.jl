@@ -182,10 +182,10 @@ end
 
 # The provenance sidecar of one fetched granule.
 function _record(path::AbstractString, granule)
-    return write_provenance(path, source = "NASA LP DAAC, MOD13C2 v061",
-                            url = granule.url, month = string(granule.month),
-                            doi = DOI, citation = CITATION,
-                            sha256 = bytes2hex(open(sha256, path)))
+    return write_sidecar(path, source = "NASA LP DAAC, MOD13C2 v061",
+                         url = granule.url, month = string(granule.month),
+                         doi = DOI, citation = CITATION,
+                         sha256 = bytes2hex(open(sha256, path)))
 end
 
 function main(argv)
