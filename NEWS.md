@@ -9,6 +9,9 @@
       v1.11 and/or are no longer part of EcoSISTEM.
     - The data scripts' sidecar writer is `write_sidecar`, since EcoSISTEM exports
       `write_provenance`.
+  - Removed
+    - The JuliaDB-era example scripts (`prepData.jl`, `climateData.jl`, `burnin.jl`,
+      `runAfrica.jl`, `plots.jl`), which no longer ran; the `africa_*` scripts replace them.
   - Added
     - Simple testing and workflow.
     - Data scripts under `data/src/` that fetch ERA5 monthly means from the Climate Data
