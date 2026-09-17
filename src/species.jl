@@ -12,12 +12,11 @@ taken from.
 const ENVELOPES_DOI = "10.5285/ca339c86-3674-4030-b891-35326e71141e"
 
 """
-    SOIL_LAYER_DEPTH
+    ENVELOPES_PAPER_DOI
 
-The depth of ERA5's top soil layer, 7 cm, over which a volumetric soil water fraction becomes a
-depth of water, as EcoSISTEM's catalogue reads `swvl1`.
+The DOI of the paper the envelopes were published with, which describes how they were built.
 """
-const SOIL_LAYER_DEPTH = 7.0cm
+const ENVELOPES_PAPER_DOI = "10.1111/geb.13564"
 
 """
     species_pool(envelopes, widths; inflation = 0.1)
@@ -28,7 +27,8 @@ those whose records give no width on one of the two tolerance axes.
 
 `pool` holds `species`, the temperature tolerance `tmin` and `tmin_sd` (K), the precipitation
 tolerance `tp` and `tp_sd` (mm/day), and the envelope's mean exposures `ssr` (J m^-2 per day) and
-`swvl1` (volumetric fraction), sorted by name. Each width has `inflation` times the pool's largest
+`swvl1` (volumetric fraction), sorted by name. `swvl1` is carried for comparison and is not used by
+[`africa_species`](@ref), which has no water resource. Each width has `inflation` times the pool's largest
 width on that axis added, so that no species has a vanishing niche.
 
 # Arguments
@@ -67,11 +67,16 @@ provenance.
 """
 function envelopes_record(path::AbstractString)
     return EcoSISTEM.InputRecord(role = :species,
-                                 dataset = "Global plant climate envelopes",
+                                 dataset = "Bioclimatic envelopes for global plant species",
                                  path = basename(path), doi = ENVELOPES_DOI,
+                                 licence = "Open Government Licence v3",
                                  citation = "Harris, C., Brummitt, N., Cobbold, C. A. and Reeve, R. (2022). " *
-                                            "NERC EDS Environmental Information Data Centre. " *
-                                            "https://doi.org/$ENVELOPES_DOI")
+                                            "Bioclimatic envelopes for global plant species. NERC EDS " *
+                                            "Environmental Information Data Centre. " *
+                                            "https://doi.org/$ENVELOPES_DOI. Described in Harris et al. " *
+                                            "(2022), Strong phylogenetic signals in global plant " *
+                                            "bioclimatic envelopes, Global Ecology and Biogeography 31, " *
+                                            "2191-2203, https://doi.org/$ENVELOPES_PAPER_DOI")
 end
 
 """
@@ -81,9 +86,9 @@ Build the [`SpeciesList`](@ref) of the species in `pool`, the `pool` of [`specie
 named by their binomials and with no individuals.
 
 Each species is matched to temperature and precipitation by a Gaussian tolerance of the pool's mean
-and width, and demands three resources per individual: `1 / density` of ground, its mean net solar
-radiation over that ground, and its mean soil water, as a depth over [`SOIL_LAYER_DEPTH`](@ref),
-over that ground. Birth and death are 0.15 a year, longevity 1, and each species' mean dispersal
+and width, and demands two resources per individual: `1 / density` of ground, and its mean net solar
+radiation over that ground. Water limits species through the precipitation tolerance alone, not as a
+resource. Birth and death are 0.15 a year, longevity 1, and each species' mean dispersal
 distance is drawn uniformly from 0.6 to 2.4 km.
 
 # Arguments
@@ -110,12 +115,9 @@ function africa_species(pool::DataFrame; density::Unitful.Quantity = 1.0 / m^2,
                                           rainfall = Precipitation),
                          demand = (space = fill(area, n),
                                    light = pool.ssr .* (J / m^2) .* perday .*
-                                           area,
-                                   water = pool.swvl1 .* SOIL_LAYER_DEPTH .*
                                            area),
                          demandaxis = (space = SurfaceArea,
-                                       light = SolarRadiation,
-                                       water = SoilWaterVolume),
+                                       light = SolarRadiation),
                          dispersal = dispersal,
                          birth = 0.15 / year, death = 0.15 / year,
                          longevity = 1.0, survival = survival,

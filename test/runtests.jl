@@ -28,6 +28,9 @@ const NUMSPECIES = 20
     withenv("AFRICA_CELLSIZE" => "50km") do
         @test requested_cellsize() == 50.0km
     end
+    @test africa_within() isa ShapeMaskSpec
+    @test africa_within().rule isa AnyOverlap
+    @test africa_within().shape isa NaturalEarthSpec
     withenv("AFRICA_CELLSIZE" => "7km") do
         @test_throws ErrorException requested_cellsize()
     end
@@ -469,6 +472,19 @@ end
     @test places[1] > 0 && places[2] == 0 && places[3] == 0
     @test parent(environment.active)[places[1]]
     @test grid_cells(environment, [-2.0], [3.0], active = false)[1] > 0
+    # Snapping moves a position in an inactive cell to the nearest active cell within reach.
+    snapped = grid_cells(environment, [-2.0], [3.0], snap = 50)[1]
+    @test snapped > 0 && parent(environment.active)[snapped]
+    @test grid_cells(environment, [-4.32], [15.31], snap = 3) == places[1:1]
+
+    mask = Bool[0 0 0 0; 0 0 0 1; 1 0 0 0]
+    # From (1, 1) the active (3, 1) is 2 cells away and (2, 4) 3.2: the nearer wins; out of reach, none.
+    @test Africa._nearestactive(mask, CartesianIndex(1, 1), 3) ==
+          LinearIndices(mask)[3, 1]
+    @test Africa._nearestactive(mask, CartesianIndex(1, 1), 1) == 0
+    # From (2, 2) both are about as near: (3, 1) at 2 against (2, 4) at 4 in squared distance.
+    @test Africa._nearestactive(mask, CartesianIndex(2, 2), 2) ==
+          LinearIndices(mask)[3, 1]
 
     species = build_species(NUMSPECIES, tolerance = (295.0K, 50.0K),
                             toleranceaxis = Temperature,
@@ -572,6 +588,23 @@ end
 
     # A record in the burn-in's first month is at elapsed zero; one after it is before the run.
     @test months_back([2025, 2026, 1940], [12, 1, 1]) == [0, -1, 1031]
+    # Without a floor the factors are the scale's own shares, and a cell with no EVI seeds nothing.
+    raw = seeding_factors(c, evi, fraction, area, records, floor = 0.0)
+    @test raw[1, 1] ≈ 1.0e6 && raw[2, 1] == 0.0 && isnan(raw[2, 2])
+
+    # One scale takes relative factors to a chosen total, each still seeding at least one.
+    scaled = scale_to_total([2.0, 1.0, 0.0], 10.0)
+    @test sum(scaled.counts) ≈ 10.0
+    @test scaled.counts ≈ [6.0, 3.0, 1.0]
+    @test scale_to_total([2.0, 1.0], 1.5).counts == [1.0, 1.0]
+    @test scale_to_total([2.0, 1.0], 1.5).scale == 0.0
+
+    # A record counts fully at the start and halves for each half-life before it.
+    @test recency_weight(0.0year) == 1.0
+    @test recency_weight(-1.0year) == 1.0
+    @test recency_weight(40.0year) ≈ 0.25
+    @test recency_weight(10.0year, halflife = 10.0year) ≈ 0.5
+
     grid = (lon = [0.025, 0.075], lat = [0.075, 0.025])
     @test fine_cells([0.07, 0.01, 1.0], [0.01, 0.07, 0.0], grid) == [1, 4, 0]
 end

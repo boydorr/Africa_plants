@@ -50,29 +50,32 @@ function seeding_scale(evi::AbstractArray{<:Real},
 end
 
 """
-    seeding_factors(c, evi, fraction, cellarea, records)
+    seeding_factors(c, evi, fraction, cellarea, records; floor = 1.0)
 
 Return the individuals each record in a fine cell seeds, `max(c x EVI x fraction x cellarea /
-records, 1)`, as an array of the cells' shape: a record always seeds at least the plant it saw, and
-a cell without an EVI seeds only its records. Cells with no records hold `NaN`.
+records, floor)`, as an array of the cells' shape: with the default `floor` a record always seeds at
+least the plant it saw, and a cell without an EVI seeds only its records. Cells with no records hold
+`NaN`.
 
 # Arguments
 
   - `c`: the scale from [`seeding_scale`](@ref).
   - `evi`, `fraction`, `cellarea`: as for [`seeding_scale`](@ref).
   - `records`: how many records each fine cell holds over the whole seeding period.
+  - `floor`: the fewest individuals a record seeds; `0` gives the factors before any floor.
 """
 function seeding_factors(c::Unitful.Quantity, evi::AbstractArray{<:Real},
                          fraction::AbstractArray{<:Real},
                          cellarea::AbstractArray{<:Unitful.Area},
-                         records::AbstractArray{<:Integer})
+                         records::AbstractArray{<:Integer};
+                         floor::Real = 1.0)
     size(evi) == size(fraction) == size(cellarea) == size(records) ||
         error("`evi`, `fraction`, `cellarea` and `records` must share one shape")
     factors = fill(NaN, size(evi))
     for (i, (e, f, a, n)) in enumerate(zip(evi, fraction, cellarea, records))
         n > 0 || continue
-        factors[i] = isnan(e) ? 1.0 :
-                     max(uconvert(NoUnits, c * max(e, 0) * f * a) / n, 1.0)
+        factors[i] = isnan(e) ? Float64(floor) :
+                     max(uconvert(NoUnits, c * max(e, 0) * f * a) / n, floor)
     end
     return factors
 end
@@ -141,10 +144,11 @@ end
 Return what a backwards run seeds from `records` onto `habitat`, as a named tuple: `rows`, the
 columns `species`, `y`, `x`, `time` and `count` that `build_abundance_table` takes, one per record;
 the scale `c` from [`seeding_scale`](@ref); and how many records were `used`, fell `outside` the
-fine grid, or fell in no active cell of `habitat` (`inactive`).
+fine grid, were `snapped` from an inactive cell to a nearby active one, or fell in no active cell of
+`habitat` within reach (`inactive`).
 
-A record's count is its fine cell's factor from [`seeding_factors`](@ref), with the scale normalised
-over the fine cells whose centres lie in active cells of `habitat`, and its time is how many months
+A record's count is its fine cell's factor from [`seeding_factors`](@ref) before any floor, with
+the scale normalised over the fine cells whose centres lie in active cells of `habitat`, and its time is how many months
 before `start` it was made, as an elapsed time in months of `month_mean_duration`.
 
 # Arguments
@@ -155,12 +159,15 @@ before `start` it was made, as an elapsed time in months of `month_mean_duration
   - `habitat`: the habitat the records are seeded into.
   - `landarea`: the available ground over `habitat`'s active cells.
   - `density`, `start`: plants per unit of available ground, and the month the run begins at.
+  - `snap`: how many cells a record in an inactive cell may be moved to reach an active one, as for
+    [`grid_cells`](@ref).
 """
 function seeding_rows(records::DataFrame, grid::NamedTuple,
                       habitat::GridHabitat,
                       landarea::Unitful.Area;
                       density::Unitful.Quantity = 1.0 / m^2,
-                      start::NamedTuple = (year = 2025, month = 12))
+                      start::NamedTuple = (year = 2025, month = 12),
+                      snap::Integer = 3)
     nx, ny = length(grid.lon), length(grid.lat)
     centrelat = vec(repeat(reshape(grid.lat, 1, ny), nx, 1))
     centrelon = vec(repeat(grid.lon, 1, ny))
@@ -177,8 +184,10 @@ function seeding_rows(records::DataFrame, grid::NamedTuple,
     for f in fine
         f > 0 && (counts[f] += 1)
     end
-    factors = seeding_factors(c, grid.evi, fraction, grid.area, counts)
-    model = grid_cells(habitat, lat, lon)
+    factors = seeding_factors(c, grid.evi, fraction, grid.area, counts,
+                              floor = 0.0)
+    model = grid_cells(habitat, lat, lon, snap = snap)
+    unsnapped = grid_cells(habitat, lat, lon)
     keep = (fine .> 0) .& (model .> 0)
     positions = CartesianIndices(size(parent(habitat.active)))[model[keep]]
     back = months_back(records.year[keep], records.month[keep], start = start)
@@ -188,5 +197,40 @@ function seeding_rows(records::DataFrame, grid::NamedTuple,
             count = factors[fine[keep]])
     return (rows = rows, c = c, used = count(keep),
             outside = count(==(0), fine),
+            snapped = count((fine .> 0) .& (model .> 0) .& (unsnapped .== 0)),
             inactive = count((fine .> 0) .& (model .== 0)))
+end
+
+"""
+    recency_weight(elapsed; halflife = 20.0year)
+
+Return how much a record made `elapsed` before the start of a backwards run counts towards the
+starting state: one for a record at or after the start, halving for every `halflife` before it.
+"""
+function recency_weight(elapsed::Unitful.Time;
+                        halflife::Unitful.Time = 20.0year)
+    return 2.0^(-uconvert(NoUnits, max(elapsed, zero(elapsed)) / halflife))
+end
+
+"""
+    scale_to_total(factors, total; floor = 1.0)
+
+Return `(scale, counts)`: the one multiplier `scale` for which `counts = max.(scale .* factors,
+floor)` sums to `total`, found by bisection, so that relative factors become individuals adding up to
+a chosen number while each still seeds at least `floor`. Where even the floors exceed `total` the
+scale is zero.
+"""
+function scale_to_total(factors::AbstractVector{<:Real}, total::Real;
+                        floor::Real = 1.0)
+    all(>=(0), factors) || error("seeding factors cannot be negative")
+    summed(k) = sum(f -> max(k * f, floor), factors, init = 0.0)
+    if summed(0.0) >= total
+        return (scale = 0.0, counts = fill(Float64(floor), length(factors)))
+    end
+    lo, hi = 0.0, total / sum(factors)
+    for _ in 1:200
+        mid = (lo + hi) / 2
+        summed(mid) < total ? (lo = mid) : (hi = mid)
+    end
+    return (scale = hi, counts = max.(hi .* factors, floor))
 end

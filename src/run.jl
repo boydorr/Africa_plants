@@ -7,20 +7,18 @@
 """
     positioning_layers()
 
-Return the `regime` and `supply` a study area over Africa is positioned and costed with: WorldClim's
-annual mean temperature and a uniform sunlight. Reading the ERA5 files to decide the grid costs
-minutes where these cost seconds, and the grid is the same projected lattice whichever positions
-it; the run's own layers are then built onto it.
+Return the `regime` and `supply` a study area over Africa is positioned and costed with: no regime,
+and the ground available to plants as the supply. Land cover has values over the sea as well as the
+land, so it removes no coastal cell the outline touches, and the outline alone decides which cells
+are simulated.
 """
 function positioning_layers()
-    return (regime = SourceSpec(WorldClim{BioClim}, :bio1),
-            supply = UniformSpec(1.0kJ / (m^2 * Unitful.d),
-                                 axis = SolarRadiation))
+    return (regime = nothing, supply = available_ground())
 end
 
 """
     africa_ecosystem(species, area, timing = ForwardClimate(); seed = 1,
-                     epoch = Dates.Date(1940, 1, 1), dir = era5_dir())
+                     epoch = Dates.Date(1940, 1, 1), dir = era5_dir(), distributed = :auto)
 
 Build the ecosystem of `species` on `area` with the climate laid out as `timing` says, stepped by
 `MeanMonths()` from `epoch`, serial or across MPI ranks as the process was launched.
@@ -33,17 +31,19 @@ Build the ecosystem of `species` on `area` with the climate laid out as `timing`
   - `seed`: seeds the run's random streams; replicates differ by seed.
   - `epoch`: the date elapsed time zero falls on.
   - `dir`: the directory of the ERA5 monthly files.
+  - `distributed`: `:auto` builds a distributed ecosystem when the process is a live multi-rank MPI
+    session and a serial one otherwise; `true` and `false` demand one or the other.
 """
 function africa_ecosystem(species, area::StudyArea,
                           timing::AbstractClimateTiming = ForwardClimate();
                           seed::Integer = 1,
                           epoch::Dates.Date = Dates.Date(1940, 1, 1),
-                          dir::AbstractString = era5_dir())
+                          dir::AbstractString = era5_dir(), distributed = :auto)
     layers = africa_layers(timing, dir = dir)
     habitat = GridHabitat(regime = layers.regime, supply = layers.supply,
                           area = area)
     return build_ecosystem(species, habitat, seed = seed, epoch = epoch,
-                           calendar = MeanMonths(), distributed = :auto)
+                           calendar = MeanMonths(), distributed = distributed)
 end
 
 """
@@ -71,15 +71,22 @@ function _supplies(eco, name::Symbol)
 end
 
 """
-    burnin_table(eco, records, grid; density = 1.0 / m^2, start = (year = 2025, month = 12))
+    burnin_table(eco, records, grid; density = 1.0 / m^2, start = (year = 2025, month = 12),
+                 halflife = 20.0year, snap = 3)
 
 Return what a backwards burn-in of `eco` adds, as a named tuple: `table`, the abundance table for an
-`AddAbundanceTable`, and the numbers that went into it - the scale `c`, the records `used`, those
-`outside` the fine grid and those in an `inactive` cell, and the individuals `started` with.
+`AddAbundanceTable`, and the numbers that went into it - the EVI scale `c` and the continental
+`scale`, the records `used`, those `outside` the fine grid, those `snapped` to a nearby active cell
+and those left in an `inactive` cell, and the
+individuals `started` with, `added` over the burn-in and added as `extra` from records after `start`.
 
-The table's rows at elapsed zero fill each cell to what its resources hold at the run's first
-month, taking species' shares from how many of their records the cell has; every record is then
-added again at the month it was made, by its seeding factor.
+Half the individuals are present at elapsed zero and half arrive as the run passes the months their
+records were made, across the continent as a whole. The rows at elapsed zero fill each cell to what
+its resources hold at the run's first month, the species' shares taken from their records in the
+cell, each weighted by its seeding factor and by [`recency_weight`](@ref). Every record is then added
+at its own month, by its seeding factor times one continental scale and at least one individual, the
+scale chosen so that the records within the run add as many individuals as the start holds. Records
+made after `start` are added at elapsed zero on top of both halves.
 
 # Arguments
 
@@ -88,26 +95,35 @@ added again at the month it was made, by its seeding factor.
   - `grid`: the fine seeding grid, from [`read_seeding_grid`](@ref).
   - `density`: plants per unit of available ground, as the species were built with.
   - `start`: the month the backwards run begins at, the last month of the climate.
+  - `halflife`: how long before `start` a record's weight in the starting shares halves.
+  - `snap`: how many cells a record in an inactive cell may be moved to reach an active one.
 """
 function burnin_table(eco, records::DataFrame, grid::NamedTuple;
                       density::Unitful.Quantity = 1.0 / m^2,
-                      start::NamedTuple = (year = 2025, month = 12))
+                      start::NamedTuple = (year = 2025, month = 12),
+                      halflife::Unitful.Time = 20.0year, snap::Integer = 3)
     active = vec(parent(eco.habitat.active))
     space = _supplies(eco, :space)
     landarea = sum(space[active])
     seeded = seeding_rows(records, grid, eco.habitat, landarea,
-                          density = density, start = start)
+                          density = density, start = start, snap = snap)
     names = eco.spplist.names
     index = Dict(n => i for (i, n) in enumerate(names))
     shape = size(parent(eco.habitat.active))
     linear = LinearIndices(shape)
     rows = seeded.rows
     cells = [linear[y, x] for (y, x) in zip(rows.y, rows.x)]
-    counts = SparseArrays.sparse([index[s] for s in rows.species], cells, 1.0,
-                                 length(names), prod(shape))
-    resources = (:space, :light, :water)
+    shares = [max(f, 1.0) * recency_weight(t, halflife = halflife)
+              for (f, t) in zip(rows.count, rows.time)]
+    counts = SparseArrays.sparse([index[s] for s in rows.species], cells,
+                                 shares, length(names), prod(shape))
+    resources = (:space, :light)
     filled = fill_to_capacity(counts, map(r -> _supplies(eco, r), resources),
                               map(r -> _demands(eco, r), resources))
+    started = sum(filled.count, init = 0)
+    within = [t >= zero(t) for t in rows.time]
+    scaled = scale_to_total(rows.count[within], started)
+    added = max.(scaled.scale .* rows.count, 1.0)
     positions = CartesianIndices(shape)[filled.cell]
     table = build_abundance_table(eco,
                                   (species = vcat(names[filled.species],
@@ -118,10 +134,13 @@ function burnin_table(eco, records::DataFrame, grid::NamedTuple;
                                                1.0month_mean_duration,
                                                rows.time),
                                    count = vcat(Float64.(filled.count),
-                                                rows.count)))
-    return (table = table, c = seeded.c, used = seeded.used,
-            outside = seeded.outside, inactive = seeded.inactive,
-            started = sum(filled.count, init = 0))
+                                                added)))
+    return (table = table, c = seeded.c, scale = scaled.scale,
+            used = seeded.used, outside = seeded.outside,
+            snapped = seeded.snapped, inactive = seeded.inactive,
+            started = started,
+            added = sum(added[within], init = 0.0),
+            extra = sum(added[.!within], init = 0.0))
 end
 
 """

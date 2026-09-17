@@ -8,7 +8,7 @@
 module Africa
 
 using EcoSISTEM
-using RasterDataSources: EarthEnv, LandCover, WorldClim, BioClim
+using RasterDataSources: EarthEnv, LandCover
 using EcoSISTEM.Units
 using Unitful
 using Unitful.DefaultSymbols
@@ -44,12 +44,12 @@ export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
        perspecies_bytes, choose_cellsize, africa_area,
        AVAILABLE_CLASSES, era5_dir, available_ground, africa_layers,
        AbstractClimateTiming, ForwardClimate, ReversedClimate, HeldClimateYear,
-       ENVELOPES_DOI, SOIL_LAYER_DEPTH, species_pool, envelopes_record,
+       ENVELOPES_DOI, species_pool, envelopes_record,
        africa_species,
        MIN_EVI_MONTHS, seeding_scale, seeding_factors, months_back, fine_cells,
-       read_seeding_grid, seeding_rows,
-       grid_cells,
-       fill_to_capacity, positioning_layers, africa_ecosystem, gbif_record,
+       read_seeding_grid, seeding_rows, recency_weight, scale_to_total,
+       grid_cells, fill_to_capacity, positioning_layers, africa_ecosystem,
+       gbif_record,
        burnin_table, run_burnin!, load_abundances, abundance_table,
        continue_from!,
        record_diversity!

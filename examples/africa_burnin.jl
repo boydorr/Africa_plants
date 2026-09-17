@@ -14,6 +14,7 @@
 # |-------------------|-----------------------|--------------------------------------------------|
 # | `AFRICA_SCALE`    | `large`               | `small`: 200 species, the coarsest grid, 6 months back and 1 year held |
 # | `AFRICA_CELLSIZE` | chosen                | `50km` to override the memory-based choice       |
+# | `AFRICA_DISTRIBUTED` | `auto`             | `serial` or `mpi` to demand one                  |
 # | `AFRICA_SEED`     | `1`                   | seeds the species and the run                    |
 # | `AFRICA_HELD`     | `10`                  | years the first year's climate is repeated       |
 # | `AFRICA_SAVEDIR`  | `./Africa_run`        | where the settled state is written               |
@@ -34,6 +35,14 @@ const DATA = joinpath(pkgdir(Africa), "data")
 const ENVELOPES = get(ENV, "AFRICA_ENVELOPES",
                       expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
 const SEED = parse(Int, get(ENV, "AFRICA_SEED", "1"))
+# `auto` builds a distributed ecosystem under a live multi-rank MPI session and a serial one
+# otherwise; `mpi` and `serial` demand one or the other.
+const DISTRIBUTED = let want = get(ENV, "AFRICA_DISTRIBUTED", "auto")
+    want == "auto" ? :auto :
+    want == "mpi" ? true :
+    want == "serial" ? false :
+    error("AFRICA_DISTRIBUTED=$want is not one of auto, mpi, serial")
+end
 const SAVEDIR = get(ENV, "AFRICA_SAVEDIR", joinpath(pwd(), "Africa_run"))
 const MONTHS = smallscale() ? 6 : 12 * (2025 - 1940 + 1)
 const HELD = smallscale() ? 1 : parse(Int, get(ENV, "AFRICA_HELD", "10"))
@@ -73,21 +82,42 @@ area = africa_area(chosen.cellsize, regime = positioning.regime,
 say("grid ", chosen.cellsize)
 
 # Backwards through the climate, seeding as the records' months pass.
-eco = africa_ecosystem(species, area, ReversedClimate(), seed = SEED)
+eco = africa_ecosystem(species, area, ReversedClimate(), seed = SEED,
+                       distributed = DISTRIBUTED)
 seeding = burnin_table(eco, records,
                        read_seeding_grid(joinpath(DATA, "seeding_grid.nc")))
-say("seeding: c = ", seeding.c, ", ", seeding.used, " records used, ",
-    seeding.inactive, " in no active cell, ", seeding.started,
-    " individuals to start")
-@time run_burnin!(eco, seeding.table, MONTHS,
-                  provenance = gbif_record("records_africa.csv"))
+say("seeding: c = ", seeding.c, ", continental scale ", seeding.scale, "; ",
+    seeding.used, " records used, ", seeding.inactive, " in no active cell; ",
+    seeding.started, " individuals to start, ", seeding.added,
+    " added over the burn-in, ", seeding.extra, " from records after it")
+# Seeded as `run_burnin!` does, but through `simulate!` directly so that a run of many hours reports
+# each decade it passes; the callback only prints, which is safe on every MPI rank.
+seeding_rows = Intervention(EveryStep(), ActiveCells(),
+                            AddAbundanceTable(seeding.table),
+                            provenance = gbif_record("records_africa.csv"))
+started = time()
+@time simulate!(eco, MONTHS * 1.0month_mean_duration, 1.0month_mean_duration,
+                every = EveryInterval(120 * 1.0month_mean_duration),
+                intervention = seeding_rows) do occurrence
+    say("burn-in: ", 10 * (occurrence.count - 1), " years back, ",
+        round(Int, time() - started), " s elapsed")
+    return nothing
+end
 SaveAbundance(SAVEDIR, "burnin")(eco, (count = 1,))
 
 # The first year's climate repeated, from the state the backwards run reached.
-held = africa_ecosystem(species, area, HeldClimateYear(1940), seed = SEED)
+held = africa_ecosystem(species, area, HeldClimateYear(1940), seed = SEED,
+                        distributed = DISTRIBUTED)
 backwards = load_abundances(joinpath(SAVEDIR, "burnin00.jld2"))
 continue_from!(held, backwards,
                provenance = gbif_record("records_africa.csv"))
-@time simulate!(held, HELD * 1.0year, 1.0month_mean_duration)
+started = time()
+@time simulate!(held, HELD * 1.0year, 1.0month_mean_duration,
+                every = EveryInterval(12 * 1.0month_mean_duration)
+                ) do occurrence
+    say("held climate: year ", occurrence.count - 1, " of ", HELD, ", ",
+        round(Int, time() - started), " s elapsed")
+    return nothing
+end
 SaveAbundance(SAVEDIR, "start")(held, (count = 1,))
 say("settled state written to ", joinpath(SAVEDIR, "start00.jld2"))

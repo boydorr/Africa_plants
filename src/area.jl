@@ -16,8 +16,10 @@ const AFRICA_CRS = EPSG(10592)
     africa_within(; outline = true, coverage = AllTerritories())
 
 Return the `within` specification positioning a study area over Africa: Natural Earth's
-continent-level "Africa" as a [`NaturalEarthSpec`](@ref), which downloads the outline the first
-time it is built, or with `outline = false` its bounding box alone at no download.
+continent-level "Africa", downloaded the first time it is built, activating every cell the outline
+touches at all ([`AnyOverlap`](@ref)), so that a coastal cell holding any land is simulated and the
+available-ground supply scales it to that land; or with `outline = false` its bounding box alone at
+no download.
 
 `coverage` says how much of the name to take. The default keeps every territory, Madagascar
 and the islands included; `LargestLandmass()` keeps the mainland only.
@@ -25,8 +27,9 @@ and the islands included; `LargestLandmass()` keeps the mainland only.
 function africa_within(; outline::Bool = true, coverage = AllTerritories())
     outline || return EcoSISTEM.boundingbox("Africa", level = "CONTINENT",
                                  coverage = coverage)
-    return NaturalEarthSpec("Africa", level = "CONTINENT",
-                            coverage = coverage, outline = true)
+    return ShapeMaskSpec(NaturalEarthSpec("Africa", level = "CONTINENT",
+                                          coverage = coverage),
+                         AnyOverlap())
 end
 
 """

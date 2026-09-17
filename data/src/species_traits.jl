@@ -217,10 +217,10 @@ end
 """
     in_africa(records) -> BitVector
 
-Return, for each record, whether it lies in an active cell of a geographic study grid cut to
-Natural Earth's continent-level Africa: WorldClim's 10 arcminute annual mean temperature
-positions the grid (cached after the first download) and the outline decides the cells. A
-record over sea or outside the outline is `false`.
+Return, for each record, whether it lies in an active cell of a geographic study grid over Natural
+Earth's continent-level Africa, as [`africa_within`](@ref) activates them - every cell the outline
+touches - with WorldClim's 10 arcminute annual mean temperature positioning the grid (cached after
+the first download). A record off the grid or in a cell the outline does not touch is `false`.
 """
 function in_africa(records::DataFrame)
     temperature = SourceSpec(WorldClim{BioClim}, :bio1)
@@ -228,36 +228,20 @@ function in_africa(records::DataFrame)
     # indexed by latitude and longitude though not simulated. 10 arcminutes is WorldClim's
     # own resolution, so nothing is resampled. `Unitful.d` rather than `day`, which `Dates`
     # (loaded by `common.jl`) also exports.
-    area = StudyArea(regime = temperature,
-                     within = africa_within(outline = true),
+    area = StudyArea(regime = temperature, within = africa_within(),
                      cellsize = 10.0arcminute, verbosity = :silent)
     environment = GridHabitat(regime = temperature,
                               supply = UniformSpec(1.0kJ / (m^2 * Unitful.d),
                                                    axis = SolarRadiation),
                               area = area)
     active = parent(environment.active)
-    ny, nx = size(active)
-    inside = falses(nrow(records))
-    for (r, (lat, lon)) in enumerate(zip(records.decimalLatitude,
-                                         records.decimalLongitude))
-        # `getcellat` is public, not exported. It throws for a place off the grid, which is
-        # the one error expected here; anything else is a bug and must not be swallowed.
-        cell = try
-            EcoSISTEM.getcellat(environment, LatLong(lat * °, lon * °))
-        catch e
-            e isa UndefVarError && rethrow()
-            nothing
-        end
-        isnothing(cell) && continue
-        # The record's own cell, or any of its eight neighbours: a coastal record whose 10
-        # arcminute cell is mostly sea sits in an inactive cell (Lagos does), and a one-cell
-        # tolerance keeps it without reaching the offshore islands the outline excludes.
-        j, i = Tuple(cell)
-        inside[r] = any(active[jj, ii]
-                        for jj in max(1, j - 1):min(ny, j + 1),
-                            ii in max(1, i - 1):min(nx, i + 1))
-    end
-    return inside
+    places = [LatLong(lat * °, lon * °)
+              for (lat, lon) in zip(records.decimalLatitude,
+                                    records.decimalLongitude)]
+    # `getcellat` is public, not exported; given many places it answers `nothing` for one off the
+    # grid rather than throwing.
+    return BitVector([!isnothing(cell) && active[cell]
+                      for cell in EcoSISTEM.getcellat(environment, places)])
 end
 
 # --- the script ----------------------------------------------------------------------

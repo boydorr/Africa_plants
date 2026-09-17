@@ -144,8 +144,10 @@ end
 
 Return the layers of a run as a named tuple of `regime`, the ERA5 2 m temperature and total
 precipitation named `temperature` and `rainfall`, and `supply`, the available ground named `space`
-and the ERA5 net solar radiation and top-layer soil water named `light` and `water`, each of the
-last two scaled by the share of the cell available to plants. The climate is laid out in time as
+and the ERA5 net solar radiation named `light`, the latter scaled by the share of the cell available
+to plants. Water reaches species through the precipitation tolerance rather than as a resource: the
+envelopes' soil-water figures rest on a reanalysis whose own publisher describes them as qualitative
+(see the plan). The climate is laid out in time as
 `timing`, an [`AbstractClimateTiming`](@ref), says; a dated one steps one month per
 `month_mean_duration` in a run built with a `MeanMonths()` calendar.
 """
@@ -154,6 +156,5 @@ function africa_layers(timing::AbstractClimateTiming = ForwardClimate();
     return (regime = (temperature = _era5("t2m", dir, timing),
                       rainfall = _era5("tp", dir, timing)),
             supply = (space = available_ground(),
-                      light = _gated("ssr", SolarRadiation, dir, timing),
-                      water = _gated("swvl1", SoilWaterVolume, dir, timing)))
+                      light = _gated("ssr", SolarRadiation, dir, timing)))
 end
