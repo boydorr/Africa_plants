@@ -21,7 +21,7 @@ using Random
 using Dates: Dates
 using SparseArrays: SparseArrays
 using JLD2: JLD2
-using Diversity: norm_sub_alpha
+using Diversity: Diversity, Metacommunity, norm_sub_alpha
 using DimensionalData: DimensionalData
 using NCDatasets: NCDatasets
 
@@ -52,6 +52,6 @@ export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
        gbif_record,
        burnin_table, run_burnin!, load_abundances, abundance_table,
        continue_from!,
-       record_diversity!
+       population, record_diversity!
 
 end

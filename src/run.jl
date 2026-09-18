@@ -160,6 +160,44 @@ function run_burnin!(eco, table, months::Integer;
 end
 
 """
+    population(eco; qs = [0.0, 1.0, 2.0, Inf])
+
+Return what `eco` holds as a named tuple of the `total` individuals, the `alive` species with any
+individuals left, the `largest` species' individuals, and `gamma`, the metacommunity gamma diversity
+of each order in `qs`, as `Diversity.meta_gamma` measures it on the landscape as a whole. Under MPI
+each rank holds every cell of its own species, so the per-species totals are summed across the ranks
+and every rank must call it.
+
+  - `eco`: the ecosystem to count.
+  - `qs`: the orders of diversity to measure, 0 giving the species richness.
+"""
+function population(eco; qs::AbstractVector{Float64} = [0.0, 1.0, 2.0, Inf])
+    return _population(vec(sum(eco.abundances.matrix, dims = 2)), qs)
+end
+
+function population(eco::MPIEcosystem;
+                    qs::AbstractVector{Float64} = [0.0, 1.0, 2.0, Inf])
+    # Each rank sums its own species over every cell into their places in one landscape-wide vector,
+    # so that summing those vectors across the ranks gives every rank the whole metacommunity.
+    rows = eco.abundances.rows_tuple
+    perspecies = zeros(Float64, rows.total)
+    perspecies[rows.first:rows.last] = vec(sum(eco.abundances.rows_matrix,
+                                               dims = 2))
+    return _population(MPI.Allreduce(perspecies, +, MPI.COMM_WORLD), qs)
+end
+
+# What `population` reports, from the individuals of every species in the landscape. Gamma diversity
+# is undefined without individuals, and is reported as zero rather than left to divide by zero.
+function _population(perspecies::AbstractVector, qs::AbstractVector{Float64})
+    total = sum(perspecies)
+    gamma = total > 0 ?
+            Diversity.meta_gamma(Metacommunity(float.(perspecies)),
+                                 qs).diversity : zeros(length(qs))
+    return (total = round(Int, total), alive = count(>(0), perspecies),
+            largest = maximum(perspecies, init = 0.0), gamma = gamma)
+end
+
+"""
     load_abundances(path)
 
 Return the `species x cells` abundance matrix a `SaveAbundance` recorder wrote to `path`.
