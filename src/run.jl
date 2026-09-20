@@ -160,41 +160,106 @@ function run_burnin!(eco, table, months::Integer;
 end
 
 """
-    population(eco; qs = [0.0, 1.0, 2.0, Inf])
+    DIVERSITY_ORDERS
+
+The orders of diversity a run records: 0, the species richness, 1, 2 and infinity.
+"""
+const DIVERSITY_ORDERS = [0.0, 1.0, 2.0, Inf]
+
+# Diversity.jl's metacommunity measures, by the name each is recorded under. Beta is the raw
+# effective number of distinct subcommunities and rho its redundancy; the normalised pair weight
+# each subcommunity by its share of the individuals.
+const METACOMMUNITY_MEASURES = (raw_alpha = Diversity.raw_meta_alpha,
+                                norm_alpha = Diversity.norm_meta_alpha,
+                                raw_beta = Diversity.raw_meta_beta,
+                                norm_beta = Diversity.norm_meta_beta,
+                                raw_rho = Diversity.raw_meta_rho,
+                                norm_rho = Diversity.norm_meta_rho,
+                                gamma = Diversity.meta_gamma)
+
+"""
+    population(eco)
 
 Return what `eco` holds as a named tuple of the `total` individuals, the `alive` species with any
-individuals left, the `largest` species' individuals, and `gamma`, the metacommunity gamma diversity
-of each order in `qs`, as `Diversity.meta_gamma` measures it on the landscape as a whole. Under MPI
-each rank holds every cell of its own species, so the per-species totals are summed across the ranks
-and every rank must call it.
-
-  - `eco`: the ecosystem to count.
-  - `qs`: the orders of diversity to measure, 0 giving the species richness.
+individuals left, and the `largest` species' individuals. Under MPI each rank holds every cell of
+its own species, so the counts are summed across the ranks and every rank must call it.
 """
-function population(eco; qs::AbstractVector{Float64} = [0.0, 1.0, 2.0, Inf])
-    return _population(vec(sum(eco.abundances.matrix, dims = 2)), qs)
+function population(eco)
+    perspecies = vec(sum(eco.abundances.matrix, dims = 2))
+    return (total = round(Int, sum(perspecies)),
+            alive = count(>(0), perspecies),
+            largest = maximum(perspecies, init = 0))
 end
 
-function population(eco::MPIEcosystem;
-                    qs::AbstractVector{Float64} = [0.0, 1.0, 2.0, Inf])
-    # Each rank sums its own species over every cell into their places in one landscape-wide vector,
-    # so that summing those vectors across the ranks gives every rank the whole metacommunity.
-    rows = eco.abundances.rows_tuple
-    perspecies = zeros(Float64, rows.total)
-    perspecies[rows.first:rows.last] = vec(sum(eco.abundances.rows_matrix,
-                                               dims = 2))
-    return _population(MPI.Allreduce(perspecies, +, MPI.COMM_WORLD), qs)
+function population(eco::MPIEcosystem)
+    perspecies = vec(sum(eco.abundances.rows_matrix, dims = 2))
+    comm = MPI.COMM_WORLD
+    return (total = MPI.Allreduce(sum(perspecies), +, comm),
+            alive = MPI.Allreduce(count(>(0), perspecies), +, comm),
+            largest = MPI.Allreduce(maximum(perspecies, init = 0), max, comm))
 end
 
-# What `population` reports, from the individuals of every species in the landscape. Gamma diversity
-# is undefined without individuals, and is reported as zero rather than left to divide by zero.
-function _population(perspecies::AbstractVector, qs::AbstractVector{Float64})
-    total = sum(perspecies)
-    gamma = total > 0 ?
-            Diversity.meta_gamma(Metacommunity(float.(perspecies)),
-                                 qs).diversity : zeros(length(qs))
-    return (total = round(Int, total), alive = count(>(0), perspecies),
-            largest = maximum(perspecies, init = 0.0), gamma = gamma)
+"""
+    metacommunity_diversity(eco; qs = DIVERSITY_ORDERS)
+
+Return the diversity of `eco` as a whole at each order in `qs`, as a named tuple of `raw_alpha`,
+`norm_alpha`, `raw_beta`, `norm_beta`, `raw_rho`, `norm_rho` and `gamma`, each a vector over `qs`.
+Every measure is Diversity.jl's own, over the landscape partitioned into its cells.
+
+Under MPI no rank holds the whole landscape, so it is gathered first: every rank allocates a
+`species x cells` array (3.8 GiB for the continent at 50 km), the root fills and measures it, and
+the answers go back to every rank. Every rank must call this, and a run that records often is
+better off in one process.
+"""
+function metacommunity_diversity(eco;
+                                 qs::AbstractVector{<:Real} = DIVERSITY_ORDERS)
+    return _measure(eco, qs)
+end
+
+# An ecosystem of its own is what Diversity.jl measures directly.
+_measure(eco, qs) = map(m -> m(eco, qs).diversity, METACOMMUNITY_MEASURES)
+
+# A distributed one has to be gathered first, and `gatherabundance` fills the array on the root
+# alone, so only the root can measure it; the answers then go back to every rank, which keeps a
+# caller that reports or records them the same on all of them.
+function _measure(eco::MPIEcosystem, qs)
+    gathered = EcoSISTEM.gatherabundance(eco)
+    measured = MPI.Comm_rank(MPI.COMM_WORLD) == 0 ?
+               _measure(Metacommunity(Float64.(gathered)), qs) :
+               map(_ -> Float64[], METACOMMUNITY_MEASURES)
+    return MPI.bcast(measured, 0, MPI.COMM_WORLD)
+end
+
+"""
+    record_diversity(path, eco, stage, years; qs = DIVERSITY_ORDERS)
+
+Append what `eco` holds to the table at `path`, one row per measure and order: the `stage` of the
+run and how many `years` into it this is, the individuals, living species and largest species of
+[`population`](@ref), and every measure of [`metacommunity_diversity`](@ref). Write the header first
+if the file is new. Return the population and the measures, so that a caller can report them.
+
+Under MPI every rank must call this, because the measures are gathered; only the root writes.
+"""
+function record_diversity(path::AbstractString, eco, stage::AbstractString,
+                          years::Real;
+                          qs::AbstractVector{<:Real} = DIVERSITY_ORDERS)
+    counts = population(eco)
+    measures = metacommunity_diversity(eco, qs = qs)
+    if !MPI.Initialized() || MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        isfile(path) ||
+            open(io -> println(io,
+                               "stage,years,individuals,species,largest,measure,q,diversity"),
+                 path, "w")
+        open(path, "a") do io
+            for (name, values) in pairs(measures), (q, value) in zip(qs,
+                                                                     values)
+                println(io, stage, ",", years, ",", counts.total, ",",
+                        counts.alive, ",", counts.largest, ",", name, ",", q,
+                        ",", value)
+            end
+        end
+    end
+    return (counts = counts, measures = measures)
 end
 
 """

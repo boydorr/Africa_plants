@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 #
-# Species richness across Africa from the forward runs: the first and last recorded years side by side
-# and the change between them, averaged over every replicate seed in `AFRICA_SAVEDIR`, as the paper's
-# richness figure is. Where neutral-control runs are present too, a further panel shows how far the
-# forward run's final richness departs from the control's, which is the part of the change the
-# climate is responsible for.
+# Species richness across Africa from the forward runs: the first and last recorded years, the
+# control's last year where control runs exist, and the departure from it, two panels to a row,
+# averaged over every replicate seed in `AFRICA_SAVEDIR`, as the paper's richness figure is. The
+# departure from the control is the part of the change the climate is responsible for; with no
+# control runs to compare against, the change between the two years is drawn instead.
 #
 #     julia --project=examples examples/africa_plots.jl
 #
@@ -21,6 +21,10 @@ using Plots
 using Statistics
 
 const SAVEDIR = get(ENV, "AFRICA_SAVEDIR", joinpath(pwd(), "Africa_run"))
+
+# Richness runs from near black where nothing grows to pale green where everything does, as the
+# published figure has it; the diverging panels keep their own scale.
+const RICHNESS = cgrad(:algae, rev = true)
 
 # Every run of `kind` in `SAVEDIR`, as the loaded files, refusing runs made on different grids.
 function load_runs(kind::AbstractString)
@@ -61,7 +65,7 @@ function as_map(richness::AbstractMatrix, run, year)
 end
 
 # A heatmap of `values` on the runs' grid in kilometres, with the continent's own aspect.
-function panel(run, values; title, clims = :auto, color = :algae)
+function panel(run, values; title, clims = :auto, color = RICHNESS)
     y = run["y"]
     ys = y[1] < y[end] ? y : reverse(y)
     return heatmap(run["x"] ./ 1000, ys ./ 1000, values, title = title,
@@ -84,22 +88,32 @@ change = after .- before
 span = maximum(abs, filter(!isnan, change); init = 1.0)
 
 panels = [panel(run, before, title = "A  $(first_year)", clims = (0, top)),
-    panel(run, after, title = "B  $(last_year)", clims = (0, top)),
-    panel(run, change, title = "C  change", clims = (-span, span),
-          color = :balance)]
+    panel(run, after, title = "B  $(last_year)", clims = (0, top))]
 
 neutral = load_runs("neutral")
-if !isempty(neutral)
+if isempty(neutral)
+    push!(panels,
+          panel(run, change, title = "C  change", clims = (-span, span),
+                color = :balance))
+else
+    # The control's own richness is a map like the other two and shares their scale, so the three
+    # can be read against each other; the climate's part is the difference in the fourth panel.
     control = as_map(mean_richness(neutral), neutral[1], last_year)
     departure = after .- control
     reach = maximum(abs, filter(!isnan, departure); init = 1.0)
     push!(panels,
+          panel(run, control, title = "C  $(last_year) control",
+                clims = (0, top)),
           panel(run, departure, title = "D  $(last_year) against the control",
                 clims = (-reach, reach), color = :balance))
 end
 
-figure = plot(panels..., layout = (1, length(panels)),
-              size = (480 * length(panels), 380),
+# Two panels to a row, so that the maps are as large as the page allows: three of them leave the
+# fourth place empty, which is where the control's panel goes once control runs exist.
+columns = min(2, length(panels))
+rows = cld(length(panels), columns)
+figure = plot(panels..., layout = (rows, columns),
+              size = (560 * columns, 460 * rows),
               margin = 3Plots.mm, left_margin = 10Plots.mm)
 out = joinpath(SAVEDIR, "richness.pdf")
 savefig(figure, out)

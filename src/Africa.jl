@@ -52,6 +52,7 @@ export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
        gbif_record,
        burnin_table, run_burnin!, load_abundances, abundance_table,
        continue_from!,
-       population, record_diversity!
+       DIVERSITY_ORDERS, population, metacommunity_diversity,
+       record_diversity, record_diversity!
 
 end

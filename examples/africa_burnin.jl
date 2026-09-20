@@ -47,10 +47,22 @@ const SAVEDIR = get(ENV, "AFRICA_SAVEDIR", joinpath(pwd(), "Africa_run"))
 const MONTHS = smallscale() ? 6 : 12 * (2025 - 1940 + 1)
 const HELD = smallscale() ? 1 : parse(Int, get(ENV, "AFRICA_HELD", "10"))
 
-# The orders of diversity the progress lines report; 0 is the species richness.
-const QS = [0.0, 1.0, 2.0, Inf]
+# Where each stage's yearly record of the whole landscape goes: individuals, species and every
+# metacommunity measure at each order, one file per stage so a rerun of one does not disturb another.
+record(stage) = joinpath(SAVEDIR, "diversity_$(stage)_seed$(SEED).csv")
 
 say(xs...) = ISROOT && (println(xs...); flush(stdout))
+
+# One progress line from a record: where the run has got to, what it holds, and its gamma diversity.
+function report(where, recorded, elapsed)
+    counts = recorded.counts
+    say(where, ", ", round(Int, elapsed), " s elapsed, ", counts.total,
+        " individuals, ", counts.alive, " species, largest ",
+        round(100 * counts.largest / counts.total, digits = 3), "%")
+    return say("  gamma: ",
+               join(round.(recorded.measures.gamma, digits = 1), ", "),
+               " at q = ", join(DIVERSITY_ORDERS, ", "))
+end
 
 # The species and their records. A small run keeps the most-recorded species.
 envelopes = CSV.read(ENVELOPES, DataFrame,
@@ -100,16 +112,12 @@ seeding_rows = Intervention(EveryStep(), ActiveCells(),
                             provenance = gbif_record("records_africa.csv"))
 started = time()
 @time simulate!(eco, MONTHS * 1.0month_mean_duration, 1.0month_mean_duration,
-                every = EveryInterval(120 * 1.0month_mean_duration),
+                every = EveryInterval(12 * 1.0month_mean_duration),
                 intervention = seeding_rows) do occurrence
-    now = population(eco, qs = QS)
-    say("burn-in: ", 10 * (occurrence.count - 1), " years back, ",
-        round(Int, time() - started), " s elapsed, ", now.total,
-        " individuals, ",
-        now.alive, " species, largest ",
-        round(100 * now.largest / now.total, digits = 3), "%")
-    say("  gamma: ", join(round.(now.gamma, digits = 1), ", "), " at q = ",
-        join(QS, ", "))
+    back = occurrence.count - 1
+    now = record_diversity(record("burnin"), eco, "burnin", back)
+    back % 10 == 0 &&
+        report("burn-in: $(back) years back", now, time() - started)
     return nothing
 end
 SaveAbundance(SAVEDIR, "burnin")(eco, (count = 1,))
@@ -124,14 +132,9 @@ started = time()
 @time simulate!(held, HELD * 1.0year, 1.0month_mean_duration,
                 every = EveryInterval(12 * 1.0month_mean_duration)
                 ) do occurrence
-    now = population(held, qs = QS)
-    say("held climate: year ", occurrence.count - 1, " of ", HELD, ", ",
-        round(Int, time() - started), " s elapsed, ", now.total,
-        " individuals, ",
-        now.alive, " species, largest ",
-        round(100 * now.largest / now.total, digits = 3), "%")
-    say("  gamma: ", join(round.(now.gamma, digits = 1), ", "), " at q = ",
-        join(QS, ", "))
+    year = occurrence.count - 1
+    now = record_diversity(record("hold"), held, "hold", year)
+    report("held climate: year $(year) of $(HELD)", now, time() - started)
     return nothing
 end
 SaveAbundance(SAVEDIR, "start")(held, (count = 1,))

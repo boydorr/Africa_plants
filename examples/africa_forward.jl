@@ -3,7 +3,10 @@
 # The forward run: the settled state `africa_burnin.jl` wrote, run from 1940 through the ERA5 months
 # in calendar order, recording normalised subcommunity alpha diversity in every cell each 1 January.
 # One replicate per seed; `AFRICA_NEUTRAL=true` repeats the 1940 climate throughout instead, the
-# neutral control.
+# neutral control. A control is the comparison for the forward run of the **same seed**: the seed
+# decides the species' own random draws and every random stream of the run, so the two then differ
+# only in their climate. Each year both write the whole landscape's diversity to
+# `diversity_<forward|neutral>_seed<N>.csv` beside the per-cell diversity they save at the end.
 #
 #     AFRICA_SCALE=small julia --project examples/africa_forward.jl
 #     AFRICA_SEED=2 mpiexecjl --project -n 8 julia --project examples/africa_forward.jl
@@ -17,6 +20,7 @@
 # | `AFRICA_NEUTRAL`  | `false`        | `true` to repeat the 1940 climate                        |
 # | `AFRICA_SAVEDIR`  | `./Africa_run` | where the settled state is read and the diversity written |
 # | `AFRICA_START`    | `start00.jld2` | the settled state in `AFRICA_SAVEDIR` to start from       |
+# | `AFRICA_SAVEEND`  | `true`         | `false` to skip saving the state the run ends in, which is as large as the settled state it started from |
 # | `AFRICA_ENVELOPES`| the CEH file   | as for the burn-in                                       |
 
 using Africa
@@ -48,6 +52,7 @@ end
 const NEUTRAL = get(ENV, "AFRICA_NEUTRAL", "false") == "true"
 const SAVEDIR = get(ENV, "AFRICA_SAVEDIR", joinpath(pwd(), "Africa_run"))
 const START = get(ENV, "AFRICA_START", "start00.jld2")
+const SAVEEND = get(ENV, "AFRICA_SAVEEND", "true") == "true"
 const YEARS = smallscale() ? 1 : 2025 - 1940 + 1
 
 say(xs...) = ISROOT && (println(xs...); flush(stdout))
@@ -81,9 +86,11 @@ eco = africa_ecosystem(species, area, timing, seed = SEED,
 continue_from!(eco, load_abundances(joinpath(SAVEDIR, START)),
                provenance = gbif_record("records_africa.csv"))
 
-# The recorder is called from a callback of our own rather than passed to `simulate!`, so that a run
-# of many hours says where it has got to: EcoSISTEM records the year and we report it.
-const QS = [0.0, 1.0, 2.0, Inf]
+# The recorder is called from a callback of our own rather than passed to `simulate!`, so that the
+# whole landscape can be recorded and reported in the same place: EcoSISTEM records the year, we add
+# the year's metacommunity measures to `diversity_<stage>_seed<N>.csv` and report each decade.
+const QS = DIVERSITY_ORDERS
+const STAGE = NEUTRAL ? "neutral" : "forward"
 storage = zeros(length(parent(eco.habitat.active)), length(QS), YEARS + 1)
 recorder = RecordDiversity(storage, norm_sub_alpha, QS)
 started = time()
@@ -91,15 +98,27 @@ started = time()
                 every = EveryYear()) do occurrence
     recorder(eco, occurrence)
     year = 1940 + occurrence.count - 1
+    now = record_diversity(joinpath(SAVEDIR,
+                                    "diversity_$(STAGE)_seed$(SEED).csv"), eco,
+                           STAGE, occurrence.count - 1)
     if occurrence.count == 1 || year % 10 == 0 || occurrence.count == YEARS + 1
-        now = population(eco, qs = QS)
-        say(year, ": ", round(Int, time() - started), " s elapsed, ", now.total,
-            " individuals, ", now.alive, " species, largest ",
-            round(100 * now.largest / now.total, digits = 3), "%")
-        say("  gamma: ", join(round.(now.gamma, digits = 1), ", "), " at q = ",
-            join(QS, ", "))
+        counts = now.counts
+        say(year, ": ", round(Int, time() - started), " s elapsed, ",
+            counts.total, " individuals, ", counts.alive, " species, largest ",
+            round(100 * counts.largest / counts.total, digits = 3), "%")
+        say("  gamma: ", join(round.(now.measures.gamma, digits = 1), ", "),
+            " at q = ", join(QS, ", "))
     end
     return nothing
+end
+
+# The state a run ends in, so that another can carry on from it, as `AFRICA_START` names. It is as
+# large as the settled state it started from, about 10 GB for the continent at 50 km, so a machine
+# short of room turns it off.
+if SAVEEND
+    SaveAbundance(SAVEDIR, "$(STAGE)_seed$(SEED)_end")(eco, (count = 1,))
+    say("final state written to ",
+        joinpath(SAVEDIR, "$(STAGE)_seed$(SEED)_end00.jld2"))
 end
 
 if ISROOT
