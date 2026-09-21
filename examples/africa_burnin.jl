@@ -12,10 +12,11 @@
 #
 # | variable          | default               | meaning                                          |
 # |-------------------|-----------------------|--------------------------------------------------|
-# | `AFRICA_SCALE`    | `large`               | `small`: 200 species, the coarsest grid, 6 months back and 1 year held |
+# | `AFRICA_SCALE`    | `large`               | `small`: 200 species, the coarsest grid, 6 months back and 1 year held; `medium`: 3,000 species across every level of recording, the coarsest grid, the full span |
 # | `AFRICA_CELLSIZE` | chosen                | `50km` to override the memory-based choice       |
 # | `AFRICA_DISTRIBUTED` | `auto`             | `serial` or `mpi` to demand one                  |
-# | `AFRICA_SEED`     | `1`                   | seeds the species and the run                    |
+# | `AFRICA_SEED`     | `1`                   | seeds the run's random streams                   |
+# | `AFRICA_SPECIES_SEED` | `1`               | seeds the species' own draws; the same in every run of an experiment |
 # | `AFRICA_HELD`     | `10`                  | years the first year's climate is repeated       |
 # | `AFRICA_SAVEDIR`  | `./Africa_run`        | where the settled state is written               |
 # | `AFRICA_ENVELOPES`| the CEH envelope file | `global_plant_climate_envelopes.csv`             |
@@ -27,6 +28,7 @@ using Unitful
 using Unitful.DefaultSymbols
 using CSV
 using DataFrames
+using JLD2
 using MPI
 
 MPI.Initialized() || MPI.Init()
@@ -35,6 +37,9 @@ const DATA = joinpath(pkgdir(Africa), "data")
 const ENVELOPES = get(ENV, "AFRICA_ENVELOPES",
                       expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
 const SEED = parse(Int, get(ENV, "AFRICA_SEED", "1"))
+# The species are the same in every replicate, so that every replicate can start from one settled
+# state: their own draws take this seed and the run's random streams take `SEED`.
+const SPECIES_SEED = parse(Int, get(ENV, "AFRICA_SPECIES_SEED", "1"))
 # `auto` builds a distributed ecosystem under a live multi-rank MPI session and a serial one
 # otherwise; `mpi` and `serial` demand one or the other.
 const DISTRIBUTED = let want = get(ENV, "AFRICA_DISTRIBUTED", "auto")
@@ -66,7 +71,8 @@ end
 
 # The species and their records. A small run keeps the most-recorded species.
 envelopes = CSV.read(ENVELOPES, DataFrame,
-                     select = [:species, :tmin, :tp, :ssr, :swvl1])
+                     select = [:species, :genus, :family, :order, :tmin,
+                         :tp, :ssr, :swvl1])
 widths = CSV.read(joinpath(DATA, "species_widths.csv"), DataFrame)
 built = species_pool(envelopes, widths)
 records = CSV.read(joinpath(DATA, "records_africa.csv"), DataFrame,
@@ -74,17 +80,16 @@ records = CSV.read(joinpath(DATA, "records_africa.csv"), DataFrame,
                        :year, :month])
 inpool = Set(built.pool.species)
 filter!(r -> r.species in inpool, records)
-pool = built.pool
-if smallscale()
-    counts = combine(groupby(records, :species), nrow => :n)
-    chosen = Set(first(sort(counts, :n, rev = true), 200).species)
-    pool = filter(r -> r.species in chosen, pool)
+pool = scaled_pool(built.pool, records.species)
+if nrow(pool) < nrow(built.pool)
+    chosen = Set(pool.species)
     filter!(r -> r.species in chosen, records)
 end
-say(nrow(pool), " species (", length(built.unmatched), " with no envelope, ",
-    length(built.nowidth), " with no width), ", nrow(records), " records")
+say(nrow(pool), " species (", length(built.unmatched),
+    " with no envelope left out, ", length(built.nowidth),
+    " on their relatives' width alone), ", nrow(records), " records")
 
-species = africa_species(pool, seed = SEED,
+species = africa_species(pool, seed = SPECIES_SEED,
                          provenance = envelopes_record(ENVELOPES))
 positioning = positioning_layers()
 chosen = choose_cellsize(nrow(pool), regime = positioning.regime,
@@ -110,17 +115,41 @@ say("seeding: c = ", seeding.c, ", continental scale ", seeding.scale, "; ",
 seeding_rows = Intervention(EveryStep(), ActiveCells(),
                             AddAbundanceTable(seeding.table),
                             provenance = gbif_record("records_africa.csv"))
+# Each species' and each cell's individuals in every recorded year of a stage, kept beside its
+# diversity: which species a stage lost and when, and where the individuals are.
+function totals(eco, years::Integer)
+    return (species = zeros(Int, nrow(pool), years + 1),
+            cells = zeros(Int, length(parent(eco.habitat.active)), years + 1))
+end
+function keep!(kept, eco, column::Integer)
+    now = abundance_totals(eco)
+    kept.species[:, column] = now.species
+    kept.cells[:, column] = now.cells
+    return kept
+end
+function save_totals(stage::AbstractString, kept)
+    ISROOT &&
+        jldsave(joinpath(SAVEDIR, "totals_$(stage)_seed$(SEED).jld2"),
+                species = pool.species, species_totals = kept.species,
+                cell_totals = kept.cells,
+                years = collect(0:(size(kept.species, 2) - 1)))
+    return nothing
+end
+
+backwards_totals = totals(eco, MONTHS ÷ 12)
 started = time()
 @time simulate!(eco, MONTHS * 1.0month_mean_duration, 1.0month_mean_duration,
                 every = EveryInterval(12 * 1.0month_mean_duration),
                 intervention = seeding_rows) do occurrence
     back = occurrence.count - 1
+    keep!(backwards_totals, eco, occurrence.count)
     now = record_diversity(record("burnin"), eco, "burnin", back)
     back % 10 == 0 &&
         report("burn-in: $(back) years back", now, time() - started)
     return nothing
 end
 SaveAbundance(SAVEDIR, "burnin")(eco, (count = 1,))
+save_totals("burnin", backwards_totals)
 
 # The first year's climate repeated, from the state the backwards run reached.
 held = africa_ecosystem(species, area, HeldClimateYear(1940), seed = SEED,
@@ -128,14 +157,17 @@ held = africa_ecosystem(species, area, HeldClimateYear(1940), seed = SEED,
 backwards = load_abundances(joinpath(SAVEDIR, "burnin00.jld2"))
 continue_from!(held, backwards,
                provenance = gbif_record("records_africa.csv"))
+held_totals = totals(held, HELD)
 started = time()
 @time simulate!(held, HELD * 1.0year, 1.0month_mean_duration,
                 every = EveryInterval(12 * 1.0month_mean_duration)
                 ) do occurrence
     year = occurrence.count - 1
+    keep!(held_totals, held, occurrence.count)
     now = record_diversity(record("hold"), held, "hold", year)
     report("held climate: year $(year) of $(HELD)", now, time() - started)
     return nothing
 end
 SaveAbundance(SAVEDIR, "start")(held, (count = 1,))
+save_totals("hold", held_totals)
 say("settled state written to ", joinpath(SAVEDIR, "start00.jld2"))

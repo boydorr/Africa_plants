@@ -20,8 +20,8 @@
         "id": "https://github.com/boydorr/Africa_plants/actions/workflows/testing.yaml"
     },
     "continuousIntegration": "https://github.com/boydorr/Africa_plants/actions/workflows/testing.yaml",
-    "dateModified": "2026-09-15",
-    "datePublished": "2026-09-15",
+    "dateModified": "2026-09-21",
+    "datePublished": "2026-09-21",
     "downloadUrl": "https://github.com/boydorr/Africa_plants/archive/refs/tags/v0.2.0.tar.gz",
     "license": "https://spdx.org/licenses/LGPL-3.0-or-later",
     "author": [

@@ -495,30 +495,87 @@ end
     simulate!(eco, 1year - 1month_mean_duration, 1month_mean_duration)
     @test sum(eco.abundances.matrix) > 0
     @test count(>(0), sum(eco.abundances.matrix, dims = 2)) > 0
+    # The totals kept for every recorded year are the landscape summed each way.
+    totals = abundance_totals(eco)
+    @test totals.species == vec(sum(eco.abundances.matrix, dims = 2))
+    @test totals.cells == vec(sum(eco.abundances.matrix, dims = 1))
+    @test sum(totals.species) == sum(totals.cells) == population(eco).total
 end
 
 @testset "The species pool" begin
     envelopes = DataFrame(species = ["A a", "B b", "C c"],
+                          genus = ["A", "B", "C"], family = ["F", "F", "F"],
+                          order = ["O", "O", "O"],
                           tmin = [280.0, 290.0, 300.0],
                           tp = [0.001, 0.002, 0.003],
                           ssr = [1.0e7, 1.5e7, 2.0e7],
                           swvl1 = [0.1, 0.2, 0.3])
     widths = DataFrame(species = ["A a", "B b", "C c", "D d"],
+                       tmin_n = [2, 100, 1, 50],
                        tmin_sd = [1.0, 3.0, missing, 2.0],
-                       tp_sd = [0.0005, 0.0, 0.001, 0.001])
+                       tp_n = [2, 100, 40, 50],
+                       tp_sd = [0.0, 0.002, 0.001, 0.001])
     built = species_pool(envelopes, widths)
     @test built.unmatched == ["D d"]
+    # C has one record of temperature and so no width of its own there, and is kept on the prior.
     @test built.nowidth == ["C c"]
-    @test built.pool.species == ["A a", "B b"]
-    # Widths gain a tenth of the largest width in the pool, and precipitation is read in mm/day.
-    @test built.pool.tmin_sd ≈ [1.3, 3.3]
-    @test built.pool.tp ≈ [1.0, 2.0]
-    @test built.pool.tp_sd ≈ [0.55, 0.05]
+    @test built.pool.species == ["A a", "B b", "C c"]
+    # No group holds five well-recorded species, so the prior is the median over the well recorded:
+    # 3 K from B alone, and 0.0015 m/day from B and C. A's two records barely count against the
+    # weight of twelve, a width of zero included; B's hundred mostly keep their own.
+    @test built.pool.tmin_sd ≈ [sqrt((2 * 1.0^2 + 12 * 3.0^2) / 14), 3.0, 3.0]
+    @test built.pool.tp ≈ [1.0, 2.0, 3.0]
+    @test built.pool.tp_sd ≈
+          [sqrt(12 * 1.5^2 / 14), sqrt((100 * 2.0^2 + 12 * 1.5^2) / 112),
+        sqrt((40 * 1.0^2 + 12 * 1.5^2) / 52)]
+    # With no weight on the prior the widths are the records' own.
+    @test species_pool(envelopes, widths, strength = 0).pool.tmin_sd ≈
+          [1.0, 3.0, 3.0]
+
+    # A species takes the median of its well-recorded relatives, itself left out, from the first
+    # level with enough of them: species 1 from its genus, species 3 - whose genus holds only
+    # itself - from the family, and species 5, with no relatives, from everyone.
+    taxonomy = [("g", "f"), ("g", "f"), ("h", "f"), ("g", "f"), ("i", "j")]
+    priors = width_priors([1.0, 2.0, 4.0, 3.0, 9.0], [40, 40, 40, 40, 40],
+                          taxonomy, members = 2)
+    @test priors.prior ≈ [2.5, 2.0, 2.0, 1.5, 3.0]
+    @test priors.depth == [1, 1, 2, 1, 3]
+    # A poorly recorded species informs nobody, and a group it cannot name is passed over.
+    priors = width_priors([1.0, 2.0, 4.0, missing], [40, 40, 5, 1],
+                          [("g", "f"), ("g", "f"), ("g", "f"), (missing, "f")],
+                          members = 2)
+    @test priors.prior ≈ [1.5, 1.5, 1.5, 1.5]
+    @test priors.depth == [3, 3, 1, 2]
+    @test shrink_width(0.0, 2, 3.0, 12) ≈ sqrt(12 * 9 / 14)
+    @test shrink_width(2.0, 5, 3.0, 0) ≈ 2.0
 
     species = africa_species(built.pool, density = 4.0 / m^2, seed = 3)
-    @test species.names == ["A a", "B b"]
+    @test species.names == ["A a", "B b", "C c"]
     again = africa_species(built.pool, density = 4.0 / m^2, seed = 3)
     @test species.movement.kernels[1].dist == again.movement.kernels[1].dist
+end
+
+@testset "Density widths" begin
+    @test AnnualMinimumTemperature <: Temperature
+    @test AnnualMeanPrecipitation <: Precipitation
+    # Each width is written as a literal, so it is held to the pool it was worked out from wherever
+    # that data is to hand: `sqrt(2 pi)` times the geometric mean of the pool's tolerance widths,
+    # which puts a species of typical breadth at a suitability of one at its optimum.
+    widths_file = joinpath(pkgdir(Africa), "data", "species_widths.csv")
+    envelopes_file = get(ENV, "AFRICA_ENVELOPES",
+                         expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
+    if isfile(widths_file) && isfile(envelopes_file)
+        pool = species_pool(CSV.read(envelopes_file, DataFrame),
+                            CSV.read(widths_file, DataFrame)).pool
+        typical(widths) = sqrt(2pi) * exp(sum(log, widths) / length(widths))
+        @test ustrip(K, EcoSISTEM.densitywidth(AnnualMinimumTemperature)) ≈
+              typical(pool.tmin_sd) rtol=0.05
+        @test ustrip(mm / Unitful.d,
+                     EcoSISTEM.densitywidth(AnnualMeanPrecipitation)) ≈
+              typical(pool.tp_sd) rtol=0.05
+    else
+        @test_skip "the species widths and envelopes are not on this machine"
+    end
 end
 
 @testset "Climate timing" begin
@@ -541,6 +598,33 @@ end
     @test DimensionalData.lookup(held.array, DimensionalData.Ti) ==
           (1:12) .* 1.0month_mean_duration
     @test_throws ErrorException Africa._retime(stack, HeldClimateYear(1942))
+    # The least of the twelve months to each, the first eleven taking the first full twelve.
+    least = Africa._summarised(stack, TrailingMinimum())
+    @test least.array[1, 1, :] == vcat(fill(1.0, 12), 2.0:13.0) .* K
+    average = Africa._summarised(stack, TrailingMean())
+    @test average.array[2, 1, :] ≈ vcat(fill(6.5, 12), 7.5:18.5) .* K
+    @test Africa._summarised(stack, MonthlyValue()) === stack
+    # A reversed run passes the same summaries backwards, and a held year is one value throughout.
+    back = Africa._laidout(stack, TrailingMinimum(), ReversedClimate())
+    @test parent(back.array)[1, 1, :] ==
+          reverse(parent(least.array)[1, 1, :])
+    year = Africa._laidout(stack, TrailingMean(), HeldClimateYear(1941))
+    @test all(year.array[1, 1, :] .≈ 18.5K)
+    @test DimensionalData.lookup(year.array, DimensionalData.Ti) ==
+          (1:12) .* 1.0month_mean_duration
+    # A cell with no data, as the sea is, stays without it and does not stop the rest.
+    holed = copy(values)
+    holed[1, 2, :] .= NaN * K
+    sea = EcoSISTEM.ClimateRaster(ERA,
+                                  DimensionalData.DimArray(holed,
+                                                           DimensionalData.dims(stack.array)),
+                                  "t2m")
+    drowned = Africa._summarised(sea, TrailingMinimum())
+    @test all(isnan, drowned.array[1, 2, :])
+    @test drowned.array[1, 1, :] == least.array[1, 1, :]
+    # A shorter run of months is summarised over what there is.
+    @test Africa._summarised(stack, TrailingMean(3)).array[1, 1, 1:4] ≈
+          [2.0, 2.0, 2.0, 3.0] .* K
     # Reversing twice returns the original slices.
     twice = Africa._retime(Africa._retime(stack, ReversedClimate()),
                            ReversedClimate())

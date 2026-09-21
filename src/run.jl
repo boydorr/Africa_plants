@@ -117,7 +117,7 @@ function burnin_table(eco, records::DataFrame, grid::NamedTuple;
               for (f, t) in zip(rows.count, rows.time)]
     counts = SparseArrays.sparse([index[s] for s in rows.species], cells,
                                  shares, length(names), prod(shape))
-    resources = (:space, :light)
+    resources = (:space, :light, :water)
     filled = fill_to_capacity(counts, map(r -> _supplies(eco, r), resources),
                               map(r -> _demands(eco, r), resources))
     started = sum(filled.count, init = 0)
@@ -197,6 +197,34 @@ function population(eco::MPIEcosystem)
     return (total = MPI.Allreduce(sum(perspecies), +, comm),
             alive = MPI.Allreduce(count(>(0), perspecies), +, comm),
             largest = MPI.Allreduce(maximum(perspecies, init = 0), max, comm))
+end
+
+"""
+    abundance_totals(eco)
+
+Return the individuals `eco` holds summed two ways, as a named tuple: `species`, each species' total
+over the landscape, and `cells`, each cell's total over the species, in the orders of the species
+list and of the grid's cells. They are small enough to keep for every recorded year, where the whole
+landscape is not, and say which species a run lost and when, and where its individuals are. Under
+MPI each rank holds every cell of its own species, so both are summed across the ranks and every
+rank must call it.
+"""
+function abundance_totals(eco)
+    matrix = eco.abundances.matrix
+    return (species = vec(sum(matrix, dims = 2)),
+            cells = vec(sum(matrix, dims = 1)))
+end
+
+function abundance_totals(eco::MPIEcosystem)
+    rows = eco.abundances.rows_tuple
+    matrix = eco.abundances.rows_matrix
+    # Each rank's species go into their places in a landscape-wide vector, so that summing the
+    # vectors across the ranks gives every rank the whole of it.
+    species = zeros(Int, rows.total)
+    species[rows.first:rows.last] = vec(sum(matrix, dims = 2))
+    comm = MPI.COMM_WORLD
+    return (species = MPI.Allreduce(species, +, comm),
+            cells = MPI.Allreduce(vec(sum(matrix, dims = 1)), +, comm))
 end
 
 """

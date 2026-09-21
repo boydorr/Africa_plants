@@ -22,6 +22,7 @@ using Dates: Dates
 using SparseArrays: SparseArrays
 using JLD2: JLD2
 using Diversity: Diversity, Metacommunity, norm_sub_alpha
+using Statistics: mean, median
 using DimensionalData: DimensionalData
 using NCDatasets: NCDatasets
 
@@ -32,6 +33,7 @@ include(joinpath(pkgdir(EcoSISTEM), "examples", "HPC", "memory.jl"))
 
 include("config.jl")
 include("area.jl")
+include("axes.jl")
 include("landscape.jl")
 include("species.jl")
 include("seeding.jl")
@@ -39,12 +41,16 @@ include("placement.jl")
 include("burnin.jl")
 include("run.jl")
 
-export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
+export smallscale, mediumscale, SCALED_SPECIES, requested_cellsize,
+       africa_within, AFRICA_CRS,
        CANDIDATE_CELLSIZES,
        perspecies_bytes, choose_cellsize, africa_area,
        AVAILABLE_CLASSES, era5_dir, available_ground, africa_layers,
        AbstractClimateTiming, ForwardClimate, ReversedClimate, HeldClimateYear,
-       ENVELOPES_DOI, species_pool, envelopes_record,
+       AbstractRegimeStatistic, MonthlyValue, TrailingMinimum, TrailingMean,
+       AnnualMinimumTemperature, AnnualMeanPrecipitation,
+       ENVELOPES_DOI, PRIOR_RECORDS, PRIOR_MEMBERS, shrink_width, width_priors,
+       species_pool, scaled_pool, envelopes_record,
        africa_species,
        MIN_EVI_MONTHS, seeding_scale, seeding_factors, months_back, fine_cells,
        read_seeding_grid, seeding_rows, recency_weight, scale_to_total,
@@ -52,7 +58,8 @@ export smallscale, requested_cellsize, africa_within, AFRICA_CRS,
        gbif_record,
        burnin_table, run_burnin!, load_abundances, abundance_table,
        continue_from!,
-       DIVERSITY_ORDERS, population, metacommunity_diversity,
+       DIVERSITY_ORDERS, population, abundance_totals,
+       metacommunity_diversity,
        record_diversity, record_diversity!
 
 end

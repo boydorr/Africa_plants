@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 #
 # The forward run: the settled state `africa_burnin.jl` wrote, run from 1940 through the ERA5 months
-# in calendar order, recording normalised subcommunity alpha diversity in every cell each 1 January.
+# in calendar order, recording normalised subcommunity alpha diversity in every cell each 1 January,
+# with each species' and each cell's individuals.
 # One replicate per seed; `AFRICA_NEUTRAL=true` repeats the 1940 climate throughout instead, the
-# neutral control. A control is the comparison for the forward run of the **same seed**: the seed
-# decides the species' own random draws and every random stream of the run, so the two then differ
-# only in their climate. Each year both write the whole landscape's diversity to
+# neutral control. Every replicate starts from the one settled state and holds the same species,
+# built from `AFRICA_SPECIES_SEED`; `AFRICA_SEED` seeds only the run's random streams. A control is
+# the comparison for the forward run of the **same seed**, from which it differs only in climate. Each year both write the whole landscape's diversity to
 # `diversity_<forward|neutral>_seed<N>.csv` beside the per-cell diversity they save at the end.
 #
 #     AFRICA_SCALE=small julia --project examples/africa_forward.jl
@@ -13,10 +14,11 @@
 #
 # | variable          | default        | meaning                                                  |
 # |-------------------|----------------|----------------------------------------------------------|
-# | `AFRICA_SCALE`    | `large`        | `small`: the same species and grid as a small burn-in, 1 year |
+# | `AFRICA_SCALE`    | `large`        | `small` or `medium`: the same species and grid as a burn-in at that scale; `small` runs 1 year |
 # | `AFRICA_CELLSIZE` | chosen         | as for the burn-in, which it must match                  |
 # | `AFRICA_DISTRIBUTED` | `auto`             | `serial` or `mpi` to demand one                  |
-# | `AFRICA_SEED`     | `1`            | the replicate                                            |
+# | `AFRICA_SEED`     | `1`            | the replicate: seeds the run's random streams            |
+# | `AFRICA_SPECIES_SEED` | `1`        | seeds the species' own draws, as the burn-in's did       |
 # | `AFRICA_NEUTRAL`  | `false`        | `true` to repeat the 1940 climate                        |
 # | `AFRICA_SAVEDIR`  | `./Africa_run` | where the settled state is read and the diversity written |
 # | `AFRICA_START`    | `start00.jld2` | the settled state in `AFRICA_SAVEDIR` to start from       |
@@ -41,6 +43,9 @@ const DATA = joinpath(pkgdir(Africa), "data")
 const ENVELOPES = get(ENV, "AFRICA_ENVELOPES",
                       expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
 const SEED = parse(Int, get(ENV, "AFRICA_SEED", "1"))
+# The species are the same in every replicate, so that every replicate can start from one settled
+# state: their own draws take this seed and the run's random streams take `SEED`.
+const SPECIES_SEED = parse(Int, get(ENV, "AFRICA_SPECIES_SEED", "1"))
 # `auto` builds a distributed ecosystem under a live multi-rank MPI session and a serial one
 # otherwise; `mpi` and `serial` demand one or the other.
 const DISTRIBUTED = let want = get(ENV, "AFRICA_DISTRIBUTED", "auto")
@@ -59,19 +64,16 @@ say(xs...) = ISROOT && (println(xs...); flush(stdout))
 
 # The same species, in the same order, as the burn-in built: the settled state is indexed by them.
 envelopes = CSV.read(ENVELOPES, DataFrame,
-                     select = [:species, :tmin, :tp, :ssr, :swvl1])
+                     select = [:species, :genus, :family, :order, :tmin,
+                         :tp, :ssr, :swvl1])
 widths = CSV.read(joinpath(DATA, "species_widths.csv"), DataFrame)
 pool = species_pool(envelopes, widths).pool
-if smallscale()
+if smallscale() || mediumscale()
     records = CSV.read(joinpath(DATA, "records_africa.csv"), DataFrame,
                        select = [:species])
-    inpool = Set(pool.species)
-    filter!(r -> r.species in inpool, records)
-    counts = combine(groupby(records, :species), nrow => :n)
-    chosen = Set(first(sort(counts, :n, rev = true), 200).species)
-    pool = filter(r -> r.species in chosen, pool)
+    pool = scaled_pool(pool, records.species)
 end
-species = africa_species(pool, seed = SEED,
+species = africa_species(pool, seed = SPECIES_SEED,
                          provenance = envelopes_record(ENVELOPES))
 positioning = positioning_layers()
 chosen = choose_cellsize(nrow(pool), regime = positioning.regime,
@@ -93,10 +95,17 @@ const QS = DIVERSITY_ORDERS
 const STAGE = NEUTRAL ? "neutral" : "forward"
 storage = zeros(length(parent(eco.habitat.active)), length(QS), YEARS + 1)
 recorder = RecordDiversity(storage, norm_sub_alpha, QS)
+# Each species' and each cell's individuals in every recorded year: which species were lost and
+# when, and where the individuals are, without keeping the whole landscape.
+species_totals = zeros(Int, nrow(pool), YEARS + 1)
+cell_totals = zeros(Int, length(parent(eco.habitat.active)), YEARS + 1)
 started = time()
 @time simulate!(eco, YEARS * 1.0year, 1.0month_mean_duration,
                 every = EveryYear()) do occurrence
     recorder(eco, occurrence)
+    totals = abundance_totals(eco)
+    species_totals[:, occurrence.count] = totals.species
+    cell_totals[:, occurrence.count] = totals.cells
     year = 1940 + occurrence.count - 1
     now = record_diversity(joinpath(SAVEDIR,
                                     "diversity_$(STAGE)_seed$(SEED).csv"), eco,
@@ -132,6 +141,8 @@ if ISROOT
     end
     jldsave(joinpath(SAVEDIR, name * ".jld2"), diversity = recorder.storage,
             qs = QS, years = collect(1940:(1940 + YEARS)),
+            species = pool.species, species_totals = species_totals,
+            cell_totals = cell_totals,
             active = vec(parent(eco.habitat.active)),
             shape = size(parent(eco.habitat.active)),
             y = centres(DimensionalData.Y), x = centres(DimensionalData.X),

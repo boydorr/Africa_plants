@@ -58,7 +58,7 @@ Return the finest of `candidates` that `numspecies` species fit in, as a named t
 
 An explicit `AFRICA_CELLSIZE` is honoured, and checked through the same path so that one that
 does not fit is reported rather than discovered by an out-of-memory kill; a small-scale run
-(`AFRICA_SCALE=small`) takes the coarsest candidate outright. Under MPI `budget` is the sum
+(`AFRICA_SCALE=small` or `medium`) takes the coarsest candidate outright. Under MPI `budget` is the sum
 over the nodes the job landed on, and its first measurement is collective: reach this on every
 rank.
 """
@@ -67,7 +67,7 @@ function choose_cellsize(numspecies::Integer; regime, supply,
                          candidates = CANDIDATE_CELLSIZES,
                          budget = MemoryGuidance.memory_budget())
     want = requested_cellsize()
-    pool = smallscale() ? (maximum(candidates),) :
+    pool = (smallscale() || mediumscale()) ? (maximum(candidates),) :
            isnothing(want) ? candidates : (want,)
     return MemoryGuidance.choose_cellsize(numspecies, pool,
                                           budget = budget) do cellsize
