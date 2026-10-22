@@ -8,21 +8,21 @@
     "codeRepository": "https://github.com/boydorr/Africa_plants",
     "name": "Africa_plants",
     "issueTracker": "https://github.com/boydorr/Africa_plants/issues",
-    "readme": "https://github.com/boydorr/Africa_plants/blob/main/README.md",
+    "readme": "https://github.com/boydorr/Africa_plants/blob/HEAD/README.md",
     "dateCreated": "2021-11-25",
     "operatingSystem": [
         "Linux",
         "Windows",
-        "macos"
+        "macOS"
     ],
-    "version": "v0.2.0",
+    "version": "v0.3.0",
     "codemeta:contIntegration": {
         "id": "https://github.com/boydorr/Africa_plants/actions/workflows/testing.yaml"
     },
     "continuousIntegration": "https://github.com/boydorr/Africa_plants/actions/workflows/testing.yaml",
-    "dateModified": "2026-09-21",
-    "datePublished": "2026-09-21",
-    "downloadUrl": "https://github.com/boydorr/Africa_plants/archive/refs/tags/v0.2.0.tar.gz",
+    "dateModified": "2026-10-22",
+    "datePublished": "2023-09-04",
+    "downloadUrl": "https://github.com/boydorr/Africa_plants/archive/refs/tags/v0.3.0.tar.gz",
     "license": "https://spdx.org/licenses/LGPL-3.0-or-later",
     "author": [
         {

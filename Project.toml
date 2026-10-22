@@ -1,7 +1,7 @@
 name = "Africa"
 uuid = "6119f539-958e-4989-9c66-2e1931f65b8f"
 license = "LGPL-3.0-or-later"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Claire Harris", "Richard Reeve <richard.reeve@glasgow.ac.uk>"]
 
 [deps]
@@ -34,7 +34,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 [compat]
 ArchGDAL = "0.10"
 CDSAPI = "2.2, 2.3"
-CSV = "0.10"
+CSV = "0.10, 1"
 CodecBzip2 = "0.8"
 DataFrames = "1"
 DimensionalData = "0.30"
