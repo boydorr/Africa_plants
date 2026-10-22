@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
 include("../GIT/Chapter5/src/Chapter5.jl")
 #include("../src/Chapter5.jl")
 using .Chapter5
@@ -22,7 +24,8 @@ using Random
 function runSim()
     gbif = JuliaDB.load("data/Full_GBIF_africa")
     traits = JuliaDB.load("data/Africa_traits")
-    traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) & (tr.prec_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
+    traits = filter(tr -> (tr.swvl1 > 0.0m^3) & (tr.ssr > 0.0J/m^2) &
+                          (tr.prec_sd > 0.0mm) & (tr.tmin_sd > 0.0K), traits)
     gbif = filter(gb -> gb.SppID in select(traits, :SppID), gbif)
 
     file = "data/Africa.tif"
@@ -30,7 +33,9 @@ function runSim()
     #heatmap(africa)
 
     # Set up grid
-    numSpecies = length(traits); grd = (100,100); area = 64e6km^2;
+    numSpecies = length(traits)
+    grd = (100, 100)
+    area = 64e6km^2
     individuals = Int64(numSpecies * 1e6)
 
     # Set up species requirements
@@ -57,9 +62,10 @@ function runSim()
     abun = rand(Multinomial(individuals, numSpecies))
     trts = TraitCollection2(temp_traits, prec_traits)
 
-    death_rates = abs.(rand(Normal(0.15, 0.135), numSpecies)) ./year
+    death_rates = abs.(rand(Normal(0.15, 0.135), numSpecies)) ./ year
     birth_rates = death_rates
-    param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates, 1.0, 1e-3, 1.0)
+    param = PopGrowth{typeof(unit(birth_rates[1]))}(birth_rates, death_rates,
+                                                    1.0, 1e-3, 1.0)
 
     native = fill(true, numSpecies)
 
@@ -76,7 +82,7 @@ function runSim()
         collect(1980year:1month:(1990year - 1.0month)),
         collect(1990year:1month:(2000year - 1.0month)),
         collect(2000year:1month:(2010year - 1.0month)),
-        collect(2010year:1month:(2019year- 1.0month))]
+        collect(2010year:1month:(2019year - 1.0month))]
 
     # Load ERA climates
     dir1 = "data/ERA"
@@ -86,32 +92,42 @@ function runSim()
     solarradax2 = readERA(dir1, "era_int_netsolar", "ssr", times)
 
     # Concatenate and crop to Africa
-    temp = cat(tempax1.array[:, :, 1901year .. (1979year-1month)], tempax2.array, dims = 3)
-    prec = cat(precax1.array[:, :, 1901year .. (1979year-1month)], precax2.array, dims = 3)
+    temp = cat(tempax1.array[:, :, 1901year .. (1979year-1month)],
+               tempax2.array, dims = 3)
+    prec = cat(precax1.array[:, :, 1901year .. (1979year-1month)],
+               precax2.array, dims = 3)
     prec[prec .< 0m] *= 0
-    soilwater = cat(soilwaterax1.array[:, :, 1901year .. (1979year-1month)], soilwaterax2.array, dims = 3)
+    soilwater = cat(soilwaterax1.array[:, :, 1901year .. (1979year-1month)],
+                    soilwaterax2.array, dims = 3)
     soilwater[soilwater .< 0m^3] *= 0
-    solarrad = cat(solarradax1.array[:, :, 1901year .. (1979year-1month)], solarradax2.array, dims = 3)
+    solarrad = cat(solarradax1.array[:, :, 1901year .. (1979year-1month)],
+                   solarradax2.array, dims = 3)
     solarrad[solarrad .< 0J/m^2] *= 0
 
-    africa_temp = ERA(temp[-25°.. 50°, -35°.. 40°, :])
-    africa_prec = ERA(prec[-25°.. 50°, -35°.. 40°, :])
-    africa_prec.array = AxisArray(uconvert.(mm, africa_prec.array), africa_prec.array.axes)
+    africa_temp = ERA(temp[-25° .. 50°, -35° .. 40°, :])
+    africa_prec = ERA(prec[-25° .. 50°, -35° .. 40°, :])
+    africa_prec.array = AxisArray(uconvert.(mm, africa_prec.array),
+                                  africa_prec.array.axes)
 
     # Convert water and solar to the right area/volume for one grid square
-    africa_water = uconvert.(m^3, soilwater[-25°.. 50°, -35°.. 40°, :] .* (80km * 80km * 7cm) ./ m^3)
-    africa_solar = uconvert.(kJ, solarrad[-25°.. 50°, -35°.. 40°, :] .* (80km * 80km))
+    africa_water = uconvert.(m^3,
+                             soilwater[-25° .. 50°, -35° .. 40°, :] .*
+                             (80km * 80km * 7cm) ./ m^3)
+    africa_solar = uconvert.(kJ,
+                             solarrad[-25° .. 50°, -35° .. 40°, :] .*
+                             (80km * 80km))
 
     africa_solar = SolarTimeBudget(africa_solar, 1)
     africa_water = EcoSISTEM.VolWaterTimeBudget(africa_water, 1)
     bud = BudgetCollection2(africa_solar, africa_water)
-    active =  Array{Bool, 2}(.!isnan.(africa))
+    active = Array{Bool, 2}(.!isnan.(africa))
 
     # Put together abiotic environment
     ae1 = eraAE(africa_temp, africa_solar, active)
     ae2 = eraAE(africa_prec, africa_solar, active)
     hab = HabitatCollection2(ae1.habitat, ae2.habitat)
-    ae = GridAbioticEnv{typeof(hab), typeof(bud)}(hab, ae1.active, bud, ae1.names)
+    ae = GridAbioticEnv{typeof(hab), typeof(bud)}(hab, ae1.active, bud,
+                                                  ae1.names)
 
     rel1 = Gauss{eltype(ae.habitat.h1)}()
     rel2 = Gauss{eltype(ae.habitat.h2)}()
@@ -120,10 +136,18 @@ function runSim()
 
     start = startingArray(gbif, numSpecies, true)
 
-    adjust1 = [eco.abenv.budget.b1.matrix[x,y,end]/ sum(eco.spplist.requirement.r1.energy .* start[:, convert_coords(x,y, 100)]) for y in 1:100 for x in 1:100]
+    adjust1 = [eco.abenv.budget.b1.matrix[x, y, end] /
+               sum(eco.spplist.requirement.r1.energy .*
+                   start[:, convert_coords(x, y, 100)]) for y in 1:100
+               for x in 1:100]
     adjust1[.!active[1:end]] .= 0
 
-    adjust2 = [eco.abenv.budget.b2.matrix[x,y,end]/sum(eco.spplist.requirement.r2.energy .* start[:, convert_coords(x,y, 100)])  for y in 1:100 for x in 1:100]
+    adjust2 = [eco.abenv.budget.b2.matrix[x, y, end]/sum(eco.spplist.requirement.r2.energy .*
+                                                         start[:,
+                                                               convert_coords(x,
+                                                                              y,
+                                                                              100)])
+               for y in 1:100 for x in 1:100]
     adjust2[.!active[1:end]] .= 0
 
     adjust = [minimum([adjust1[i], adjust2[i]]) for i in eachindex(adjust1)]
@@ -138,12 +162,16 @@ function runSim()
     file = "data/Africa_effort.tif"
     effort = Array(readfile(file, -25°, 50°, -35°, 40°))[:, end:-1:1]
     effort[isnan.(effort)] .= 1
-    fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1), size(eco.abundances.matrix, 2))
-    reverseBurnin!(eco, 118years - 1month, 1month, 10years, "/media/claireh/storageb/Chapter5/burnin/", gbif, effort, fillarray)
+    fillarray = Array{Int64, 2}(undef, size(eco.abundances.matrix, 1),
+                                size(eco.abundances.matrix, 2))
+    reverseBurnin!(eco, 118years - 1month, 1month, 10years,
+                   "/media/claireh/storageb/Chapter5/burnin/", gbif, effort,
+                   fillarray)
     runburnin!(eco, 10years, 1month)
     return eco
 end
 
 output = runSim()
-JLD.save("Africa_new_1.jld", "diver", EcoSISTEM.SavedLandscape(output.abundances))
-sum(mapslices(sum, output.abundances.matrix, dims =2)[:,1].>0)
+JLD.save("Africa_new_1.jld", "diver",
+         EcoSISTEM.SavedLandscape(output.abundances))
+sum(mapslices(sum, output.abundances.matrix, dims = 2)[:, 1] .> 0)

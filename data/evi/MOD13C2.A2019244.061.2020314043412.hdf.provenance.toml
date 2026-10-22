@@ -1,0 +1,9 @@
+source = "NASA LP DAAC, MOD13C2 v061"
+bytes = 105737012
+month = "2019-09-01"
+doi = "10.5067/MODIS/MOD13C2.061"
+url = "https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/MOD13C2.061/MOD13C2.A2019244.061.2020314043412/MOD13C2.A2019244.061.2020314043412.hdf"
+citation = "Didan, K. (2021). MODIS/Terra Vegetation Indices Monthly L3 Global 0.05Deg CMG V061 [Dataset]. NASA Land Processes Distributed Active Archive Center. https://doi.org/10.5067/MODIS/MOD13C2.061"
+written = "2026-09-15T09:39:53.157"
+sha256 = "9e3c81919cd1dbd92b9d467de4d410e1964fbcd9e264cff2c4ee1bc32b44ddea"
+writer = "data/src/evi_download.jl"

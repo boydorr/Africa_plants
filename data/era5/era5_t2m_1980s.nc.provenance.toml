@@ -1,0 +1,25 @@
+bytes = 17210750
+citation = "Copernicus Climate Change Service (2019). ERA5 monthly averaged data on single levels from 1940 to present [Data set]. Copernicus Climate Change Service (C3S) Climate Data Store (CDS). https://doi.org/10.24381/cds.f17050d7 Also cite the ERA5 description: Hersbach, H., Bell, B., Berrisford, P., Hirahara, S., Horányi, A., Muñoz-Sabater, J., Nicolas, J., Peubey, C., Radu, R., Schepers, D., Simmons, A., Soci, C., Abdalla, S., Abellan, X., Balsamo, G., Bechtold, P., Biavati, G., Bidlot, J., Bonavita, M., et al. (2020). The ERA5 global reanalysis. Quarterly Journal of the Royal Meteorological Society, 146(730), 1999-2049. https://doi.org/10.1002/qj.3803"
+code = "t2m"
+dataset = "reanalysis-era5-single-levels-monthly-means"
+doi = "10.24381/cds.f17050d7"
+fetched = "2026-09-11T22:38:47Z"
+fetched_by = "data/src/era5_download.jl"
+file = "era5_t2m_1980s.nc"
+job = "cb2a21b5-f377-4b28-a655-d276ed22a26f"
+licence = "CC-BY-4.0 (the Licence to use Copernicus Products, as the CDS catalogue reports it)"
+role = "habitat"
+sha256 = "f6d08377e55066e9f42e15e7e58d72d532672c1cb5398eed452debb43a959f89"
+source = "ERA"
+version = ""
+writer = "EcoSISTEM 0.8.0"
+
+[request]
+area = [40, -25, -36, 56]
+data_format = "netcdf"
+download_format = "unarchived"
+month = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+product_type = ["monthly_averaged_reanalysis"]
+time = ["00:00"]
+variable = ["2m_temperature"]
+year = ["1980", "1981", "1982", "1983", "1984", "1985", "1986", "1987", "1988", "1989"]

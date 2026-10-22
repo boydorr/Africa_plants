@@ -1,0 +1,25 @@
+bytes = 19552342
+citation = "Copernicus Climate Change Service (2019). ERA5 monthly averaged data on single levels from 1940 to present [Data set]. Copernicus Climate Change Service (C3S) Climate Data Store (CDS). https://doi.org/10.24381/cds.f17050d7 Also cite the ERA5 description: Hersbach, H., Bell, B., Berrisford, P., Hirahara, S., Horányi, A., Muñoz-Sabater, J., Nicolas, J., Peubey, C., Radu, R., Schepers, D., Simmons, A., Soci, C., Abdalla, S., Abellan, X., Balsamo, G., Bechtold, P., Biavati, G., Bidlot, J., Bonavita, M., et al. (2020). The ERA5 global reanalysis. Quarterly Journal of the Royal Meteorological Society, 146(730), 1999-2049. https://doi.org/10.1002/qj.3803"
+code = "ssr"
+dataset = "reanalysis-era5-single-levels-monthly-means"
+doi = "10.24381/cds.f17050d7"
+fetched = "2026-09-11T23:04:18Z"
+fetched_by = "data/src/era5_download.jl"
+file = "era5_ssr_1940s.nc"
+job = "821288c9-fe36-468e-af0f-cee6646e8b22"
+licence = "CC-BY-4.0 (the Licence to use Copernicus Products, as the CDS catalogue reports it)"
+role = "habitat"
+sha256 = "752e9e6cd11a0a72f58d338210f53fe67a1f01996dc1e2777404d44510afcb4a"
+source = "ERA"
+version = ""
+writer = "EcoSISTEM 0.8.0"
+
+[request]
+area = [40, -25, -36, 56]
+data_format = "netcdf"
+download_format = "unarchived"
+month = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+product_type = ["monthly_averaged_reanalysis"]
+time = ["00:00"]
+variable = ["surface_net_solar_radiation"]
+year = ["1940", "1941", "1942", "1943", "1944", "1945", "1946", "1947", "1948", "1949"]

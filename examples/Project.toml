@@ -1,0 +1,16 @@
+[deps]
+Africa = "6119f539-958e-4989-9c66-2e1931f65b8f"
+EcoSISTEM = "ed2dc23b-ada4-5fdb-a26f-56368a14ad8f"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[sources]
+Africa = {path = ".."}
+
+[compat]
+EcoSISTEM = "0.8"
+JLD2 = "0.5, 0.6"
+Plots = "1.38"
+Statistics = "1"
+julia = "1.11"
