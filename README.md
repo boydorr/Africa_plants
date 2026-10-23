@@ -1,4 +1,4 @@
-# Africa_plants
+# AfricaPlants
 
 Example for running code from the [EcoSISTEM paper](https://arxiv.org/abs/1911.12257). This runs a simulation of plant biodiversity for the whole of Africa (approx. 30,000 species) using data from:
 

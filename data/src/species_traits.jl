@@ -19,7 +19,7 @@
 
 module SpeciesTraits
 
-using Africa
+using AfricaPlants
 using CSV
 using DataFrames
 using Dates

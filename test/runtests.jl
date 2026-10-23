@@ -8,7 +8,7 @@
 module TestAfrica
 
 using Test
-using Africa
+using AfricaPlants
 using EcoSISTEM
 using EcoSISTEM.Units
 using Unitful
@@ -479,11 +479,11 @@ end
 
     mask = Bool[0 0 0 0; 0 0 0 1; 1 0 0 0]
     # From (1, 1) the active (3, 1) is 2 cells away and (2, 4) 3.2: the nearer wins; out of reach, none.
-    @test Africa._nearestactive(mask, CartesianIndex(1, 1), 3) ==
+    @test AfricaPlants._nearestactive(mask, CartesianIndex(1, 1), 3) ==
           LinearIndices(mask)[3, 1]
-    @test Africa._nearestactive(mask, CartesianIndex(1, 1), 1) == 0
+    @test AfricaPlants._nearestactive(mask, CartesianIndex(1, 1), 1) == 0
     # From (2, 2) both are about as near: (3, 1) at 2 against (2, 4) at 4 in squared distance.
-    @test Africa._nearestactive(mask, CartesianIndex(2, 2), 2) ==
+    @test AfricaPlants._nearestactive(mask, CartesianIndex(2, 2), 2) ==
           LinearIndices(mask)[3, 1]
 
     species = build_species(NUMSPECIES, tolerance = (295.0K, 50.0K),
@@ -561,7 +561,7 @@ end
     # Each width is written as a literal, so it is held to the pool it was worked out from wherever
     # that data is to hand: `sqrt(2 pi)` times the geometric mean of the pool's tolerance widths,
     # which puts a species of typical breadth at a suitability of one at its optimum.
-    widths_file = joinpath(pkgdir(Africa), "data", "species_widths.csv")
+    widths_file = joinpath(pkgdir(AfricaPlants), "data", "species_widths.csv")
     envelopes_file = get(ENV, "AFRICA_ENVELOPES",
                          expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
     if isfile(widths_file) && isfile(envelopes_file)
@@ -588,27 +588,28 @@ end
                                                               DimensionalData.X(1:2),
                                                               DimensionalData.Ti(dates))),
                                     "t2m")
-    @test Africa._retime(stack, ForwardClimate()) === stack
-    reversed = Africa._retime(stack, ReversedClimate())
+    @test AfricaPlants._retime(stack, ForwardClimate()) === stack
+    reversed = AfricaPlants._retime(stack, ReversedClimate())
     @test reversed.array[1, 1, :] == (24.0:-1.0:1.0) .* K
     @test DimensionalData.lookup(reversed.array, DimensionalData.Ti) ==
           (0:23) .* 1.0month_mean_duration
-    held = Africa._retime(stack, HeldClimateYear(1941))
+    held = AfricaPlants._retime(stack, HeldClimateYear(1941))
     @test held.array[2, 2, :] == (13.0:24.0) .* K
     @test DimensionalData.lookup(held.array, DimensionalData.Ti) ==
           (1:12) .* 1.0month_mean_duration
-    @test_throws ErrorException Africa._retime(stack, HeldClimateYear(1942))
+    @test_throws ErrorException AfricaPlants._retime(stack,
+                                                     HeldClimateYear(1942))
     # The least of the twelve months to each, the first eleven taking the first full twelve.
-    least = Africa._summarised(stack, TrailingMinimum())
+    least = AfricaPlants._summarised(stack, TrailingMinimum())
     @test least.array[1, 1, :] == vcat(fill(1.0, 12), 2.0:13.0) .* K
-    average = Africa._summarised(stack, TrailingMean())
+    average = AfricaPlants._summarised(stack, TrailingMean())
     @test average.array[2, 1, :] ≈ vcat(fill(6.5, 12), 7.5:18.5) .* K
-    @test Africa._summarised(stack, MonthlyValue()) === stack
+    @test AfricaPlants._summarised(stack, MonthlyValue()) === stack
     # A reversed run passes the same summaries backwards, and a held year is one value throughout.
-    back = Africa._laidout(stack, TrailingMinimum(), ReversedClimate())
+    back = AfricaPlants._laidout(stack, TrailingMinimum(), ReversedClimate())
     @test parent(back.array)[1, 1, :] ==
           reverse(parent(least.array)[1, 1, :])
-    year = Africa._laidout(stack, TrailingMean(), HeldClimateYear(1941))
+    year = AfricaPlants._laidout(stack, TrailingMean(), HeldClimateYear(1941))
     @test all(year.array[1, 1, :] .≈ 18.5K)
     @test DimensionalData.lookup(year.array, DimensionalData.Ti) ==
           (1:12) .* 1.0month_mean_duration
@@ -619,15 +620,15 @@ end
                                   DimensionalData.DimArray(holed,
                                                            DimensionalData.dims(stack.array)),
                                   "t2m")
-    drowned = Africa._summarised(sea, TrailingMinimum())
+    drowned = AfricaPlants._summarised(sea, TrailingMinimum())
     @test all(isnan, drowned.array[1, 2, :])
     @test drowned.array[1, 1, :] == least.array[1, 1, :]
     # A shorter run of months is summarised over what there is.
-    @test Africa._summarised(stack, TrailingMean(3)).array[1, 1, 1:4] ≈
+    @test AfricaPlants._summarised(stack, TrailingMean(3)).array[1, 1, 1:4] ≈
           [2.0, 2.0, 2.0, 3.0] .* K
     # Reversing twice returns the original slices.
-    twice = Africa._retime(Africa._retime(stack, ReversedClimate()),
-                           ReversedClimate())
+    twice = AfricaPlants._retime(AfricaPlants._retime(stack, ReversedClimate()),
+                                 ReversedClimate())
     @test parent(twice.array) == parent(stack.array)
 end
 

@@ -5,7 +5,7 @@
 # read from the environment, the continent as a study area, and the choice of a resolution the
 # machine can afford. The experiment scripts under `examples/` drive it.
 
-module Africa
+module AfricaPlants
 
 using EcoSISTEM
 using RasterDataSources: EarthEnv, LandCover

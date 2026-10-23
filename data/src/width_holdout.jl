@@ -29,7 +29,7 @@ using DataFrames
 using Random
 using Statistics
 
-using Africa: PRIOR_MEMBERS, PRIOR_RECORDS, shrink_width, width_priors
+using AfricaPlants: PRIOR_MEMBERS, PRIOR_RECORDS, shrink_width, width_priors
 
 include("species_widths.jl")
 using .SpeciesWidths: record_windows

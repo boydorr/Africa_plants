@@ -1,5 +1,11 @@
 # NEWS
 
+- v0.3.0
+  - Changed
+    - The package is named `AfricaPlants`, not `Africa`: scripts say `using AfricaPlants`, and the
+      `examples/` environment depends on it under that name.
+    - CSV 1 is required: the record-cleaning script keeps parse problems quiet with its
+      `on_error` keyword. The `examples/` environment declares CSV, DataFrames and Unitful.
 - v0.2.0
   - Changed
     - Rebuilt on EcoSISTEM 0.8 and Julia 1.11: the package now decides a projected Africa

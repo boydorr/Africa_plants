@@ -25,7 +25,7 @@
 # | `AFRICA_SAVEEND`  | `true`         | `false` to skip saving the state the run ends in, which is as large as the settled state it started from |
 # | `AFRICA_ENVELOPES`| the CEH file   | as for the burn-in                                       |
 
-using Africa
+using AfricaPlants
 using EcoSISTEM
 using EcoSISTEM.Units
 using Unitful
@@ -39,7 +39,7 @@ using MPI
 
 MPI.Initialized() || MPI.Init()
 const ISROOT = MPI.Comm_rank(MPI.COMM_WORLD) == 0
-const DATA = joinpath(pkgdir(Africa), "data")
+const DATA = joinpath(pkgdir(AfricaPlants), "data")
 const ENVELOPES = get(ENV, "AFRICA_ENVELOPES",
                       expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
 const SEED = parse(Int, get(ENV, "AFRICA_SEED", "1"))

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 #
 # The fine grid the seeding is scaled on: over the Africa box at the 0.05 degree resolution of the
-# mean EVI layer, each cell's mean EVI (missing where fewer than `Africa.MIN_EVI_MONTHS` months went
+# mean EVI layer, each cell's mean EVI (missing where fewer than `AfricaPlants.MIN_EVI_MONTHS` months went
 # into it), the share of the cell available to plants, and its true area.
 #
 #     julia --project data/src/seeding_grid.jl [--force]
@@ -14,7 +14,7 @@
 
 module SeedingGrid
 
-using Africa
+using AfricaPlants
 using ArchGDAL
 using EcoSISTEM
 using NCDatasets
@@ -127,7 +127,7 @@ function main(argv)
         return (Float64.(coalesce.(ds["evi"][idx.columns, idx.rows], NaN)),
                 Int.(ds["months"][idx.columns, idx.rows]))
     end
-    evi[months .< Africa.MIN_EVI_MONTHS] .= NaN
+    evi[months .< AfricaPlants.MIN_EVI_MONTHS] .= NaN
     paths = [getraster(EarthEnv{LandCover}, class) for class in AVAILABLE]
     fraction = available_fraction(paths, box)
     lon = -180 .+ CELL .* (idx.columns .- 0.5)
@@ -139,7 +139,7 @@ function main(argv)
         defVar(ds, "lat", lat, ("lat",), attrib = ["units" => "degrees_north"])
         defVar(ds, "evi", Float32.(evi), ("lon", "lat"), fillvalue = NaN32,
                deflatelevel = 4,
-               attrib = ["long_name" => "mean EVI, missing below $(Africa.MIN_EVI_MONTHS) months"])
+               attrib = ["long_name" => "mean EVI, missing below $(AfricaPlants.MIN_EVI_MONTHS) months"])
         defVar(ds, "months", Int16.(months), ("lon", "lat"), deflatelevel = 4)
         defVar(ds, "fraction", Float32.(fraction), ("lon", "lat"),
                fillvalue = NaN32, deflatelevel = 4,
@@ -153,7 +153,7 @@ function main(argv)
                   landcover = "EarthEnv{LandCover}, classes " *
                               join(AVAILABLE, ", "),
                   landcover_doi = "10.1111/geb.12182",
-                  min_evi_months = Africa.MIN_EVI_MONTHS,
+                  min_evi_months = AfricaPlants.MIN_EVI_MONTHS,
                   cells = length(evi),
                   cells_with_evi = count(!isnan, evi),
                   cells_with_fraction = count(!isnan, fraction))

@@ -21,7 +21,7 @@
 # | `AFRICA_SAVEDIR`  | `./Africa_run`        | where the settled state is written               |
 # | `AFRICA_ENVELOPES`| the CEH envelope file | `global_plant_climate_envelopes.csv`             |
 
-using Africa
+using AfricaPlants
 using EcoSISTEM
 using EcoSISTEM.Units
 using Unitful
@@ -33,7 +33,7 @@ using MPI
 
 MPI.Initialized() || MPI.Init()
 const ISROOT = MPI.Comm_rank(MPI.COMM_WORLD) == 0
-const DATA = joinpath(pkgdir(Africa), "data")
+const DATA = joinpath(pkgdir(AfricaPlants), "data")
 const ENVELOPES = get(ENV, "AFRICA_ENVELOPES",
                       expanduser("~/git/plant_trait/data/global_plant_climate_envelopes.csv"))
 const SEED = parse(Int, get(ENV, "AFRICA_SEED", "1"))

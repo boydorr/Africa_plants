@@ -7,7 +7,7 @@
 # | `AFRICA_SCALE`      | `large`  | `small` for a smoke test: coarsest grid, few species; `medium` for a trial: coarsest grid, a sample of the species, the full span |
 # | `AFRICA_CELLSIZE`   | chosen   | `50km` to override the memory-based choice           |
 #
-# Read at call time, not at load time, so a test can set them after `using Africa`.
+# Read at call time, not at load time, so a test can set them after `using AfricaPlants`.
 
 """
     smallscale()

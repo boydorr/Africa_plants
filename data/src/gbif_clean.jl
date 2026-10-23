@@ -253,7 +253,7 @@ function clean_records(input::AbstractString, output::AbstractString;
                                  :month => Int, :basisOfRecord => String,
                                  :coordinateUncertaintyInMeters => Float64,
                                  :locality => String),
-                    reusebuffer = true, silencewarnings = true)
+                    reusebuffer = true, on_error = :collect)
     seen = 0
     kept = 0
     ncentroid = 0

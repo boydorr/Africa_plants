@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 #
 # Shared by the data scripts: where the data lives, the Africa box, and provenance sidecars.
-# Included by each script; not part of the `Africa` module, because none of this is needed by a
+# Included by each script; not part of the `AfricaPlants` module, because none of this is needed by a
 # run once the data exist.
 
 using Dates
